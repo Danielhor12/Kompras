@@ -49,11 +49,12 @@
         </section>
     </main>
 
+    <!-- Navegación Inferior -->
     <nav class="bg-white border-t flex justify-around p-3 pb-6 fixed bottom-0 w-full shrink-0">
-        <button onclick="ui.nav('recetario')" class="text-blue-600 font-bold text-xs flex flex-col items-center"><span>🍲</span>Recetario</button>
-        <button onclick="ui.nav('plan')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>📅</span>Plan</button>
-        <button onclick="ui.nav('mercado')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>🛒</span>Mercado</button>
-        <button onclick="ui.nav('reportes')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>📊</span>Reportes</button>
+        <button id="btn-nav-recetario" onclick="ui.nav('recetario')" class="text-blue-600 font-bold text-xs flex flex-col items-center"><span>🍲</span>Recetario</button>
+        <button id="btn-nav-plan" onclick="ui.nav('plan')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>📅</span>Plan</button>
+        <button id="btn-nav-mercado" onclick="ui.nav('mercado')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>🛒</span>Mercado</button>
+        <button id="btn-nav-reportes" onclick="ui.nav('reportes')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>📊</span>Reportes</button>
     </nav>
 
     <div id="modal-receta" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
