@@ -39,9 +39,76 @@
             </div>
 
             <!-- VISTA 2: Platos Semanales -->
-            <div id="vista-platos" class="hidden">
-                <div id="lista-platos" class="grid grid-cols-2 gap-3"></div>
+           <!-- VISTA 2: Planificación y Recetario -->
+            <div id="vista-platos" class="hidden space-y-6">
+                
+                <!-- Sección superior: Acción Principal -->
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 flex justify-between items-center shadow-sm">
+                    <div>
+                        <h3 class="font-bold text-blue-800">Menú Semanal</h3>
+                        <p class="text-xs text-blue-600">Genera la lista para auditar</p>
+                    </div>
+                    <button onclick="generarListaDeCompras()" id="btn-generar" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold shadow hover:bg-blue-700 transition">
+                        Generar Lista
+                    </button>
+                </div>
+
+                <!-- Botón para invocar modal de nueva receta -->
+                <button onclick="toggleModal('modal-receta')" class="w-full border-2 border-dashed border-gray-300 text-gray-500 font-bold py-3 rounded-xl hover:bg-gray-50 transition">
+                    + Crear Nuevo Plato
+                </button>
+
+                <!-- Contenedor donde se renderizarán las recetas guardadas -->
+                <div id="lista-recetas" class="grid grid-cols-1 gap-3">
+                    <!-- JS inyectará los platos aquí -->
+                </div>
             </div>
+
+    <!-- (Fuera del contenedor principal, junto al otro modal, pega este nuevo Modal para Recetas) -->
+    <div id="modal-receta" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-end sm:items-center z-50">
+        <div class="bg-white w-full max-w-md p-6 rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
+            <h2 class="text-xl font-bold mb-4">Nueva Receta</h2>
+            <form id="form-nueva-receta" onsubmit="guardarReceta(event)">
+                
+                <input type="text" id="receta-nombre" placeholder="Nombre del plato (Ej. Lomo Saltado)" required class="border p-2 mb-3 w-full rounded focus:outline-none focus:border-blue-500 font-bold text-lg">
+                
+                <div class="mb-4">
+                    <label class="text-sm font-bold text-gray-600 block mb-1">¿Quién paga los ingredientes?</label>
+                    <select id="receta-pago" class="border p-2 w-full rounded bg-gray-50">
+                        <option value="Ambos">Dividir gasto (Ambos)</option>
+                        <option value="Personal">Personal</option>
+                    </select>
+                </div>
+
+                <!-- Gestor de Ingredientes -->
+                <div class="border-t border-b py-3 mb-4">
+                    <label class="text-sm font-bold text-gray-600 block mb-2">Ingredientes</label>
+                    
+                    <div class="flex space-x-2 mb-2">
+                        <input type="text" id="ingrediente-nombre" placeholder="Producto" class="border p-2 w-1/2 rounded text-sm">
+                        <input type="number" id="ingrediente-cant" placeholder="Cant." class="border p-2 w-1/4 rounded text-sm">
+                        <select id="ingrediente-unidad" class="border p-2 w-1/4 rounded text-sm">
+                            <option value="kg">kg</option>
+                            <option value="unid">unid</option>
+                            <option value="gr">gr</option>
+                        </select>
+                    </div>
+                    
+                    <button type="button" onclick="agregarIngredienteTemporal()" class="w-full bg-gray-100 text-gray-700 font-bold py-2 rounded text-sm mb-3 hover:bg-gray-200">
+                        Añadir Ingrediente
+                    </button>
+
+                    <!-- Lista temporal de ingredientes antes de guardar -->
+                    <ul id="lista-ingredientes-temp" class="space-y-1 text-sm text-gray-600 bg-gray-50 p-2 rounded empty:hidden"></ul>
+                </div>
+
+                <div class="flex space-x-3">
+                    <button type="button" onclick="cerrarModalReceta()" class="bg-gray-200 px-4 py-2 rounded w-1/2 font-bold text-gray-700">Cancelar</button>
+                    <button type="submit" id="btn-guardar-receta" class="bg-blue-600 text-white px-4 py-2 rounded w-1/2 font-bold">Guardar Plato</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
             <!-- VISTA 3: Dashboard -->
             <div id="vista-dashboard" class="hidden">
