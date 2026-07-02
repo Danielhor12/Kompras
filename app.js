@@ -205,3 +205,161 @@ async function enviarProducto(event) {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
 }
+
+// Variable global para almacenar los ingredientes del plato que se está creando
+let ingredientesTemporales = [];
+// Variable para almacenar el recetario descargado
+let recetarioGlobal = []; 
+
+// Modifica tu Router (cambiarVista) para que llame a la función correcta al entrar a 'platos'
+// Reemplaza la línea correspondiente en tu función cambiarVista:
+// else if (vistaTarget === 'platos') { ... peticionLectura(token, 'Recetario', renderizarRecetario); }
+
+function renderizarRecetario(datos) {
+    recetarioGlobal = datos;
+    const contenedor = document.getElementById('lista-recetas');
+    contenedor.innerHTML = '';
+    
+    if(datos.length === 0) {
+        contenedor.innerHTML = '<p class="text-center text-gray-400 mt-6">Aún no hay platos guardados.</p>';
+        return;
+    }
+
+    datos.forEach(plato => {
+        // Parseamos el JSON de ingredientes que viene de Sheets
+        let ingredientes = [];
+        try { ingredientes = JSON.parse(plato.Ingredientes); } catch(e) {}
+        
+        const esCompartido = plato.Pago_Default === 'Ambos';
+        const badgeColor = esCompartido ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700';
+
+        contenedor.innerHTML += `
+            <div class="bg-white border rounded-xl p-4 shadow-sm flex flex-col">
+                <div class="flex justify-between items-start mb-2">
+                    <h4 class="font-bold text-lg text-gray-800">${plato.Nombre}</h4>
+                    <span class="text-xs font-bold px-2 py-1 rounded-full ${badgeColor}">${plato.Pago_Default}</span>
+                </div>
+                <p class="text-xs text-gray-500 mb-3">${ingredientes.length} ingredientes registrados</p>
+                
+                <!-- Botón rápido para enviar solo este plato a la lista -->
+                <button onclick="enviarPlatoALista('${plato.ID_Plato}')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 rounded text-sm transition">
+                    Agregar a las compras
+                </button>
+            </div>
+        `;
+    });
+}
+
+// --- Lógica del Creador de Recetas ---
+
+function agregarIngredienteTemporal() {
+    const nombre = document.getElementById('ingrediente-nombre').value;
+    const cant = document.getElementById('ingrediente-cant').value;
+    const unidad = document.getElementById('ingrediente-unidad').value;
+
+    if(!nombre || !cant) { alert("Completa nombre y cantidad"); return; }
+
+    ingredientesTemporales.push({ nombre, cant, unidad, categoria: 'Abarrotes' }); // Categoría por defecto, luego el backend la ajustará con el Diccionario
+    
+    // Dibujar en el HTML
+    const li = document.createElement('li');
+    li.className = "flex justify-between border-b pb-1";
+    li.innerHTML = `<span>${nombre}</span> <strong>${cant} ${unidad}</strong>`;
+    document.getElementById('lista-ingredientes-temp').appendChild(li);
+
+    // Limpiar inputs
+    document.getElementById('ingrediente-nombre').value = '';
+    document.getElementById('ingrediente-cant').value = '';
+}
+
+function cerrarModalReceta() {
+    ingredientesTemporales = [];
+    document.getElementById('lista-ingredientes-temp').innerHTML = '';
+    document.getElementById('form-nueva-receta').reset();
+    toggleModal('modal-receta');
+}
+
+async function guardarReceta(event) {
+    event.preventDefault();
+    if(ingredientesTemporales.length === 0) { alert("Agrega al menos un ingrediente"); return; }
+
+    const boton = document.getElementById('btn-guardar-receta');
+    boton.innerText = 'Guardando...';
+    boton.disabled = true;
+
+    const token = localStorage.getItem('kompra_token');
+    
+    // Estructura para la pestaña Recetario
+    const nuevaReceta = {
+        action: 'insert',
+        token: token,
+        tabla: 'Recetario', // Enviamos a la tabla correcta
+        data: [
+            "REC-" + Math.floor(Math.random() * 10000), // ID_Plato
+            document.getElementById('receta-nombre').value, // Nombre
+            JSON.stringify(ingredientesTemporales), // Guardamos el array como string JSON
+            document.getElementById('receta-pago').value // Pago_Default
+        ]
+    };
+
+    try {
+        const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(nuevaReceta) });
+        const result = await res.json();
+        if(result.status === 'success') {
+            cerrarModalReceta();
+            cambiarVista('platos'); // Recargar la vista
+        }
+    } catch (e) {
+        alert("Error al guardar receta.");
+    } finally {
+        boton.innerText = 'Guardar Plato';
+        boton.disabled = false;
+    }
+}
+
+// --- Lógica del Batch Insert (De la receta a la lista de espera) ---
+
+async function enviarPlatoALista(idPlato) {
+    const plato = recetarioGlobal.find(p => p.ID_Plato === idPlato);
+    if(!plato) return;
+
+    const ingredientes = JSON.parse(plato.Ingredientes);
+    const filasParaInsertar = [];
+    const fecha = new Date().toLocaleDateString('es-PE');
+
+    // Mapeamos los ingredientes al formato de Compras_Maestro
+    ingredientes.forEach(ing => {
+        filasParaInsertar.push([
+            "CMP-" + Math.floor(Math.random() * 100000), // ID_Compra
+            fecha, // Fecha
+            "N/A", // Rango
+            ing.nombre, // Producto
+            ing.cant, // Cantidad
+            ing.unidad, // Unidad
+            "Por_Clasificar", // Categoria (ideal que el diccionario lo arregle en Sheets)
+            plato.Pago_Default, // Para (hereda de la receta)
+            "En_Espera", // Estado crucial: Aún no se sabe si falta en la refri
+            0, // Precio
+            "Pendiente" // Quien_Pago
+        ]);
+    });
+
+    const payload = {
+        action: 'batch_insert',
+        token: localStorage.getItem('kompra_token'),
+        tabla: 'Compras_Maestro',
+        data: filasParaInsertar
+    };
+
+    try {
+        // Podrías poner un loader visual aquí
+        const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await res.json();
+        if(result.status === 'success') {
+            alert(`${ingredientes.length} ingredientes enviados a la refri para auditar.`);
+        }
+    } catch(e) {
+        alert("Error al procesar la lista.");
+    }
+}
+
