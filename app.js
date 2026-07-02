@@ -1,4 +1,4 @@
-const API_URL = "TU_URL_DE_APPS_SCRIPT_AQUI"; // Pega tu URL de la nueva implementación aquí
+const API_URL = "https://script.google.com/macros/s/AKfycbzvZ8RSIkKD45PUhWENGCVFwALYsyINbS3wGMXiqMTOm1Mdb9q4hT5KOfzFLT0OSis/exec"; // Pega tu URL de la nueva implementación aquí
 let chartInstancia = null;
 
 window.onload = () => {
