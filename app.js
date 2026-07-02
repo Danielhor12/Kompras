@@ -48,15 +48,17 @@ async function syncData() {
 }
 
 // ================= UI CONTROLLERS =================
+// ================= UI CONTROLLERS =================
 const ui = {
     nav: (vista) => {
+        // Ocultar todas las vistas y resetear colores
         ['recetario', 'plan', 'mercado', 'reportes'].forEach(v => {
             document.getElementById(`view-${v}`).classList.add('hidden');
+            document.getElementById(`btn-nav-${v}`).classList.replace('text-blue-600', 'text-gray-500');
         });
+        // Mostrar la vista seleccionada y pintar su botón
         document.getElementById(`view-${vista}`).classList.remove('hidden');
-        // Pintar nav
-        document.querySelectorAll('nav button').forEach(b => b.classList.replace('text-blue-600', 'text-gray-500'));
-        event.currentTarget.classList.replace('text-gray-500', 'text-blue-600');
+        document.getElementById(`btn-nav-${vista}`).classList.replace('text-gray-500', 'text-blue-600');
     },
     toggleModal: (id) => document.getElementById(id).classList.toggle('hidden')
 };
