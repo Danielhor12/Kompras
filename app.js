@@ -1,8 +1,9 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbw-6tApaA9wllprggMCC7Bj4Iy94Qaw-iWb2lDmJMwW1uGa5sn6Ix4b12Pw2oM8yYw/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbzUMxln34VJBj9el3g6kspFLKOg1p1RfQPCr9vn2oIjiD3Qaez2weIX2dvIMH6hyMU/exec"; // NO OLVIDES PONER TU URL REAL
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
-    semanaActual: null, tempIngredientes: [], editandoPlatoID: null
+    semanaActual: null, tempIngredientes: [], editandoPlatoID: null,
+    tempPlanMeta: null // Almacena temporalmente los datos del plan antes de confirmar
 };
 
 const auth = {
@@ -102,8 +103,8 @@ function renderRecetario() {
             <div class="flex justify-between items-start mb-2">
                 <h4 class="font-bold text-gray-800 text-lg">${r.Nombre}</h4>
                 <div class="flex gap-2">
-                    <button onclick="app.abrirEditarReceta('${r.ID_Plato}')" class="text-blue-500 text-xs font-bold bg-blue-50 px-2 py-1 rounded">Editar</button>
-                    <button onclick="app.eliminarReceta('${r.ID_Plato}')" class="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded">Borrar</button>
+                    <button onclick="app.abrirEditarReceta('${r.ID_Plato}')" class="text-blue-500 text-xs font-bold bg-blue-50 px-2 py-1 rounded shadow-sm hover:bg-blue-100">Editar</button>
+                    <button onclick="app.eliminarReceta('${r.ID_Plato}')" class="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded shadow-sm hover:bg-red-100">Eliminar</button>
                 </div>
             </div>
             <div class="text-xs bg-gray-50 p-2 rounded text-gray-600 divide-y divide-gray-200">
@@ -143,7 +144,18 @@ function renderPlan() {
             <div class="mb-4 border border-blue-200 rounded-xl overflow-hidden shadow-sm">
                 <div class="bg-blue-600 text-white font-bold p-2 text-center capitalize text-sm tracking-wide">${nombreDia}</div>
                 <div class="bg-white p-2 space-y-2">
-                    ${platos.map(p => `<div class="p-3 bg-blue-50 text-blue-900 rounded-lg text-sm font-bold border border-blue-100 flex items-center gap-2"><span>🍽️</span> ${p.Nombre_Plato}</div>`).join('')}
+                    ${platos.map(p => `
+                        <div class="p-3 bg-blue-50 text-blue-900 rounded-lg text-sm border border-blue-100 flex flex-col gap-2">
+                            <div class="flex justify-between items-start">
+                                <span class="font-bold pr-2">🍽️ ${p.Nombre_Plato}</span>
+                                <button onclick="app.eliminarPlan('${p.Plan_ID}')" class="text-red-500 font-bold bg-red-100 px-3 py-1 rounded text-xs hover:bg-red-200 shadow-sm transition">X</button>
+                            </div>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-[10px] text-gray-500 font-bold uppercase">Mover a:</span>
+                                <input type="date" value="${p.Fecha.substring(0,10)}" onchange="app.cambiarFechaPlan('${p.Plan_ID}', this.value)" class="border border-blue-200 p-1 text-[10px] rounded bg-white font-bold text-blue-700 outline-none focus:ring-1 focus:ring-blue-400">
+                            </div>
+                        </div>
+                    `).join('')}
                 </div>
             </div>`;
         }
@@ -184,7 +196,7 @@ function renderMercado() {
             <div id="cat-head-${cat}" class="bg-gray-800 text-white p-2 flex flex-wrap gap-2 items-center justify-between">
                 <h4 class="font-bold uppercase text-xs w-full mb-1">${cat}</h4>
                 <select class="cat-para text-black text-[10px] p-1 rounded font-bold outline-none"><option value="Ambos">Para: Ambos</option><option value="Carlos">Para: Carlos</option><option value="Daniel">Para: Daniel</option></select>
-                <select class="cat-quien text-black text-[10px] p-1 rounded font-bold outline-none"><option value="Pendiente">Pago: Pendte.</option><option value="Carlos">Pago: Carlos</option><option value="Daniel">Pago: Daniel</option></select>
+                <select class="cat-quien text-black text-[10px] p-1 rounded font-bold outline-none"><option value="Pendiente">Pago: Pndte.</option><option value="Carlos">Pago: Carlos</option><option value="Daniel">Pago: Daniel</option></select>
                 <input type="number" class="cat-total text-black text-[10px] p-1 rounded font-bold w-16 text-center outline-none" placeholder="Costo S/">
                 <button onclick="app.bloquearCategoria('${cat}')" class="bg-red-500 px-2 py-1 rounded text-[10px] font-bold hover:bg-red-600 shadow-sm">Bloquear Total</button>
             </div>
@@ -193,7 +205,7 @@ function renderMercado() {
         arts.forEach(a => {
             const isBlocked = a.Estado === 'Comprado_Bloqueado';
             const isComprado = a.Estado === 'Comprado';
-            const txtUnidad = a.Origen === 'Agrupación' ? '(Total)' : `(${a.Cantidad || 1} ${a.Unidad})`; // Muestra Cantidad
+            const txtUnidad = a.Origen === 'Agrupación' ? '(Total)' : `(${a.Cantidad || 1} ${a.Unidad})`; 
             
             html += `
             <div id="row-${a.ID_Item}" class="flex flex-wrap gap-2 items-center p-2 border-b border-gray-100 last:border-0 bg-gray-50 rounded">
@@ -220,92 +232,80 @@ function renderMercado() {
     document.getElementById('lista-mercado').innerHTML = html;
 }
 
-// ================= CONTROLADOR PRINCIPAL (OPTIMISTIC UI = RAPIDEZ TOTAL) =================
+// ================= CONTROLADOR PRINCIPAL =================
 const app = {
-    // ---- Recetario ----
-    abrirNuevaReceta: () => {
-        state.editandoPlatoID = null;
-        document.getElementById('titulo-modal-receta').innerText = "Nueva Receta";
-        document.getElementById('rec-nombre').value = '';
-        state.tempIngredientes = [];
-        app.renderTempIngredientes();
-        ui.toggleModal('modal-receta');
-    },
-    abrirEditarReceta: (id) => {
-        state.editandoPlatoID = id;
-        const receta = state.recetario.find(r => r.ID_Plato === id);
-        document.getElementById('titulo-modal-receta').innerText = "Editar Receta";
-        document.getElementById('rec-nombre').value = receta.Nombre;
-        state.tempIngredientes = JSON.parse(receta.Ingredientes_JSON || '[]');
-        app.renderTempIngredientes();
-        ui.toggleModal('modal-receta');
-    },
-    eliminarReceta: (id) => {
-        if(!confirm("¿Seguro que deseas eliminar este plato definitivamente?")) return;
-        // Optimistic Delete
-        state.recetario = state.recetario.filter(r => r.ID_Plato !== id);
-        renderRecetario();
-        api({ action: 'delete_receta', id: id }, true); // Envío silencioso
-    },
-    addIngredienteTemp: () => {
-        const art = document.getElementById('rec-ing-art').value;
-        const cant = document.getElementById('rec-ing-cant').value;
+    // ---- Funciones Auxiliares para Ingredientes Temporales ----
+    addIngredienteTemp: (contexto) => {
+        const prefix = contexto === 'rec' ? 'rec' : 'plan';
+        const art = document.getElementById(`${prefix}-ing-art`).value;
+        const cant = document.getElementById(`${prefix}-ing-cant`).value;
         if(!art) return alert("El nombre del artículo es obligatorio");
         
         state.tempIngredientes.push({
             articulo: art, cantidad: cant || 1,
-            categoria: document.getElementById('rec-ing-cat').value,
-            unidad: document.getElementById('rec-ing-uni').value,
-            para: document.getElementById('rec-ing-para') ? document.getElementById('rec-ing-para').value : 'Ambos',
-            quien_pago: document.getElementById('rec-ing-quien') ? document.getElementById('rec-ing-quien').value : 'Pendiente'
+            categoria: document.getElementById(`${prefix}-ing-cat`).value,
+            unidad: document.getElementById(`${prefix}-ing-uni`).value,
+            para: document.getElementById(`${prefix}-ing-para`).value,
+            quien_pago: document.getElementById(`${prefix}-ing-quien`).value
         });
-        document.getElementById('rec-ing-art').value = ''; document.getElementById('rec-ing-cant').value = '';
-        app.renderTempIngredientes();
+        document.getElementById(`${prefix}-ing-art`).value = '';
+        document.getElementById(`${prefix}-ing-cant`).value = '';
+        app.renderTempIngredientes(contexto);
     },
-    removerIngredienteTemp: (index) => {
+    removerIngredienteTemp: (index, contexto) => {
         state.tempIngredientes.splice(index, 1);
-        app.renderTempIngredientes();
+        app.renderTempIngredientes(contexto);
     },
-    renderTempIngredientes: () => {
-        const lista = document.getElementById('lista-ingredientes-temp');
+    renderTempIngredientes: (contexto) => {
+        const prefix = contexto === 'rec' ? 'rec' : 'plan';
+        const listaId = contexto === 'rec' ? 'lista-ingredientes-temp' : 'lista-plan-ingredientes-temp';
+        const lista = document.getElementById(listaId);
         if(!lista) return;
+
         lista.innerHTML = state.tempIngredientes.map((i, index) => `
             <li class="flex justify-between items-center border-b border-gray-100 pb-2 last:border-0 text-gray-700">
                 <div class="flex flex-col">
                     <span>${i.articulo} <span class="font-bold text-blue-600 ml-1">${i.cantidad} ${i.unidad}</span></span>
                     <span class="text-[10px] uppercase text-gray-400 font-bold">Para: ${i.para || 'Ambos'} | Pago: ${i.quien_pago || 'Pendiente'}</span>
                 </div>
-                <button type="button" onclick="app.removerIngredienteTemp(${index})" class="text-red-500 font-bold px-3 py-1 bg-red-50 rounded text-xs hover:bg-red-100">X</button>
+                <button type="button" onclick="app.removerIngredienteTemp(${index}, '${contexto}')" class="text-red-500 font-bold px-3 py-1 bg-red-50 rounded text-xs hover:bg-red-100">X</button>
             </li>`).join('');
+    },
+
+    // ---- Recetario ----
+    abrirNuevaReceta: () => {
+        state.editandoPlatoID = null; document.getElementById('titulo-modal-receta').innerText = "Nueva Receta"; document.getElementById('rec-nombre').value = '';
+        state.tempIngredientes = []; app.renderTempIngredientes('rec'); ui.toggleModal('modal-receta');
+    },
+    abrirEditarReceta: (id) => {
+        state.editandoPlatoID = id; const receta = state.recetario.find(r => r.ID_Plato === id);
+        document.getElementById('titulo-modal-receta').innerText = "Editar Receta"; document.getElementById('rec-nombre').value = receta.Nombre;
+        state.tempIngredientes = JSON.parse(receta.Ingredientes_JSON || '[]'); app.renderTempIngredientes('rec'); ui.toggleModal('modal-receta');
+    },
+    eliminarReceta: (id) => {
+        if(!confirm("¿Seguro que deseas eliminar este plato definitivamente?")) return;
+        state.recetario = state.recetario.filter(r => r.ID_Plato !== id);
+        renderRecetario();
+        api({ action: 'delete_receta', id: id }, true); 
     },
     guardarReceta: () => {
         const nombre = document.getElementById('rec-nombre').value;
         if(!nombre) return alert("Falta el nombre de la receta");
 
-        const btn = document.getElementById('btn-save-receta');
-        if(btn) btn.innerText = 'Guardando...'; 
-
         const recetaID = state.editandoPlatoID || "PLT-" + Date.now();
         const nuevaReceta = { ID_Plato: recetaID, Nombre: nombre, Ingredientes_JSON: JSON.stringify(state.tempIngredientes) };
         
-        // Optimistic Update
         if(state.editandoPlatoID) {
             const idx = state.recetario.findIndex(r => r.ID_Plato === state.editandoPlatoID);
             if(idx !== -1) state.recetario[idx] = nuevaReceta;
-        } else {
-            state.recetario.push(nuevaReceta);
-        }
+        } else { state.recetario.push(nuevaReceta); }
         
-        renderRecetario();
-        ui.toggleModal('modal-receta');
-        if(btn) btn.innerText = 'Guardar';
-        
-        // Envío Silencioso
+        renderRecetario(); ui.toggleModal('modal-receta');
         api({ action: state.editandoPlatoID ? 'update_receta' : 'save_receta', data: { id: recetaID, nombre: nombre, ingredientes: nuevaReceta.Ingredientes_JSON } }, true);
     },
 
-    // ---- Plan ----
-    guardarPlan: () => {
+    // ---- Plan Semanal (Avanzado) ----
+    prepararPlan: () => {
         const fecha = document.getElementById('plan-fecha').value; 
         const id_plato = document.getElementById('plan-plato').value;
         const plato = state.recetario.find(p => p.ID_Plato === id_plato);
@@ -313,58 +313,94 @@ const app = {
         if(!fecha) return alert("Selecciona una fecha.");
         if(!plato) return alert("Selecciona un plato.");
 
-        const btn = document.getElementById('btn-save-plan');
-        btn.innerText = '¡Plato Programado!'; 
-        setTimeout(() => { btn.innerText = 'Añadir al Calendario'; }, 1500);
-
-        // Optimistic Update: Escribir localmente de inmediato
-        state.plan.push({ Semana_ID: state.semanaActual, Fecha: fecha, ID_Plato: plato.ID_Plato, Nombre_Plato: plato.Nombre });
+        // Guardamos los datos temporalmente
+        state.tempPlanMeta = { fecha, id_plato: plato.ID_Plato, nombre_plato: plato.Nombre };
+        state.tempIngredientes = JSON.parse(plato.Ingredientes_JSON || '[]');
         
-        const ingredientes = JSON.parse(plato.Ingredientes_JSON);
-        ingredientes.forEach(ing => {
+        document.getElementById('plan-modal-subtitulo').innerText = `${plato.Nombre} - ${formatearFechaAmigable(fecha)}`;
+        app.renderTempIngredientes('plan');
+        ui.toggleModal('modal-plan-ingredientes');
+    },
+    confirmarPlan: () => {
+        const btn = document.getElementById('btn-confirmar-plan');
+        btn.innerText = '¡Programado!'; 
+        setTimeout(() => { btn.innerText = 'Confirmar y Programar'; }, 1000);
+
+        const planID = "PLN-" + Date.now();
+        const meta = state.tempPlanMeta;
+
+        // Optimistic Update
+        state.plan.push({ Plan_ID: planID, Semana_ID: state.semanaActual, Fecha: meta.fecha, ID_Plato: meta.id_plato, Nombre_Plato: meta.nombre_plato });
+        
+        state.tempIngredientes.forEach(ing => {
             state.mercado.push({
-                ID_Item: "ITM-" + Date.now() + Math.floor(Math.random() * 1000), Semana_ID: state.semanaActual,
+                ID_Item: "ITM-" + Date.now() + Math.floor(Math.random() * 1000), Semana_ID: state.semanaActual, Plan_ID: planID,
                 Articulo: ing.articulo, Categoria: ing.categoria, Unidad: ing.unidad, Cantidad: ing.cantidad || 1,
-                Para: ing.para || "Ambos", Quien_Pago: ing.quien_pago || "Pendiente", Precio: 0, Estado: "Pendiente", Origen: "Receta", Fecha: fecha
+                Para: ing.para || "Ambos", Quien_Pago: ing.quien_pago || "Pendiente", Precio: 0, Estado: "Pendiente", Origen: "Receta", Fecha: meta.fecha
             });
         });
 
-        renderPlan();
-        renderMercado();
+        renderPlan(); renderMercado();
         document.getElementById('plan-fecha').value = '';
+        ui.toggleModal('modal-plan-ingredientes');
 
         // Envío Silencioso
-        api({ action: 'save_plan', semana_id: state.semanaActual, fecha: fecha, id_plato: plato.ID_Plato, nombre_plato: plato.Nombre, ingredientes: plato.Ingredientes_JSON }, true);
+        api({ action: 'save_plan', plan_id: planID, semana_id: state.semanaActual, fecha: meta.fecha, id_plato: meta.id_plato, nombre_plato: meta.nombre_plato, ingredientes: JSON.stringify(state.tempIngredientes) }, true);
+    },
+    cambiarFechaPlan: (planID, nuevaFecha) => {
+        if(!nuevaFecha) return;
+        
+        // Actualizar localmente el plan
+        const planIdx = state.plan.findIndex(p => p.Plan_ID === planID);
+        if(planIdx !== -1) state.plan[planIdx].Fecha = nuevaFecha;
+
+        // Actualizar localmente el mercado asociado
+        state.mercado.forEach(m => { if(m.Plan_ID === planID) m.Fecha = nuevaFecha; });
+
+        renderPlan(); renderMercado();
+        api({ action: 'update_plan_date', plan_id: planID, nueva_fecha: nuevaFecha }, true);
+    },
+    eliminarPlan: (planID) => {
+        if(!confirm("¿Eliminar este plato del calendario y sus ingredientes del mercado?")) return;
+        
+        // Borrar localmente
+        state.plan = state.plan.filter(p => p.Plan_ID !== planID);
+        state.mercado = state.mercado.filter(m => m.Plan_ID !== planID);
+
+        renderPlan(); renderMercado();
+        api({ action: 'delete_plan', plan_id: planID }, true);
     },
 
-    // ---- Mercado ----
+    // ---- Mercado Manual y Bloqueo ----
+    abrirModalManual: () => {
+        const fInicio = document.getElementById('filtro-inicio').value;
+        document.getElementById('man-fecha').value = fInicio || new Date().toISOString().substring(0, 10);
+        document.getElementById('man-art').value = ''; document.getElementById('man-precio').value = '';
+        ui.toggleModal('modal-item-manual');
+    },
     guardarManual: () => {
         const btn = document.getElementById('btn-save-manual');
         btn.innerText = 'Guardando...'; 
 
+        const fechaAsignada = document.getElementById('man-fecha').value;
         const newItem = {
             id: "ITM-" + Date.now(), semana_id: state.semanaActual,
             articulo: document.getElementById('man-art').value, cantidad: document.getElementById('man-cant').value || 1,
             categoria: document.getElementById('man-cat').value, unidad: document.getElementById('man-uni').value,
             para: document.getElementById('man-para').value, quien_pago: document.getElementById('man-quien').value,
-            precio: document.getElementById('man-precio').value || 0, estado: "Pendiente", fecha: new Date().toISOString().substring(0, 10) 
+            precio: document.getElementById('man-precio').value || 0, estado: "Pendiente", fecha: fechaAsignada 
         };
 
-        // Optimistic Push
         state.mercado.push({
-            ID_Item: newItem.id, Semana_ID: newItem.semana_id, Articulo: newItem.articulo, Categoria: newItem.categoria, 
+            ID_Item: newItem.id, Semana_ID: newItem.semana_id, Plan_ID: "", Articulo: newItem.articulo, Categoria: newItem.categoria, 
             Unidad: newItem.unidad, Cantidad: newItem.cantidad, Para: newItem.para, Quien_Pago: newItem.quien_pago, 
             Precio: newItem.precio, Estado: newItem.estado, Origen: "Manual", Fecha: newItem.fecha
         });
 
-        renderMercado();
-        ui.toggleModal('modal-item-manual');
+        renderMercado(); ui.toggleModal('modal-item-manual');
         if(btn) btn.innerText = 'Agregar';
-
-        // Envío silencioso
         api({ action: 'add_mercado', data: newItem }, true);
     },
-
     updateItem: (id) => {
         const row = document.getElementById(`row-${id}`);
         const para = row.querySelector('.sel-para').value;
@@ -372,22 +408,17 @@ const app = {
         const precio = row.querySelector('.inp-precio').value;
         const estado = row.querySelector('.chk-estado').checked ? "Comprado" : "Pendiente";
 
-        // Interfaz Optimista: Actualizar Memoria Local
         const item = state.mercado.find(m => m.ID_Item === id);
         if(item) { item.Para = para; item.Quien_Pago = quien; item.Precio = precio; item.Estado = estado; }
 
-        // Actualizar UI Visualmente
         const textoArticulo = row.querySelector('span.flex-1');
-        if (estado === 'Comprado' || estado === 'Comprado_Bloqueado') {
+        if (estado === 'Comprado_Bloqueado') {
             textoArticulo.classList.add('line-through', 'text-gray-400'); textoArticulo.classList.remove('text-gray-800');
         } else {
             textoArticulo.classList.remove('line-through', 'text-gray-400'); textoArticulo.classList.add('text-gray-800');
         }
-
-        // Envío Silencioso (No traba la app)
         api({ action: 'update_item', data: { id, para, quien_pago: quien, precio, estado } }, true); 
     },
-
     bloquearCategoria: (cat) => {
         const cont = document.getElementById(`cat-head-${cat}`);
         const totalInput = cont.querySelector('.cat-total').value;
@@ -395,39 +426,50 @@ const app = {
         
         const para = cont.querySelector('.cat-para').value;
         const quien = cont.querySelector('.cat-quien').value;
+        const fInicio = document.getElementById('filtro-inicio').value;
+        const fechaBloqueo = fInicio || new Date().toISOString().substring(0, 10);
 
-        // Optimistic Block: Cambia todo instantáneamente en la app
         state.mercado.forEach(m => {
             if(m.Semana_ID === state.semanaActual && m.Categoria === cat && m.Estado === "Pendiente") {
                 m.Para = para; m.Quien_Pago = quien; m.Precio = 0; m.Estado = "Comprado_Bloqueado";
             }
         });
         state.mercado.push({
-            ID_Item: "ITM-" + Date.now(), Semana_ID: state.semanaActual, Articulo: "TOTAL " + cat, Categoria: cat, 
+            ID_Item: "ITM-" + Date.now(), Semana_ID: state.semanaActual, Plan_ID: "", Articulo: "TOTAL " + cat, Categoria: cat, 
             Unidad: "soles", Cantidad: 1, Para: para, Quien_Pago: quien, Precio: totalInput, Estado: "Comprado", 
-            Origen: "Agrupación", Fecha: new Date().toISOString().substring(0, 10)
+            Origen: "Agrupación", Fecha: fechaBloqueo
         });
 
         renderMercado();
-        api({ action: 'block_categoria', semana_id: state.semanaActual, categoria: cat, total: totalInput, para: para, quien_pago: quien }, true);
+        api({ action: 'block_categoria', semana_id: state.semanaActual, categoria: cat, total: totalInput, para: para, quien_pago: quien, fecha: fechaBloqueo }, true);
     },
 
-    // ---- PAGOS (Cálculos de Cuadre Corregidos) ----
+    // ---- PAGOS ----
     calcularPagos: () => {
-        const items = state.mercado.filter(m => m.Semana_ID === state.semanaActual);
+        const fIn = document.getElementById('filtro-inicio').value;
+        const fFin = document.getElementById('filtro-fin').value;
+
+        let items = state.mercado.filter(m => m.Semana_ID === state.semanaActual);
+
+        if (fIn || fFin) {
+            items = items.filter(m => {
+                if (!m.Fecha) return true;
+                const f = m.Fecha.substring(0, 10);
+                if (fIn && f < fIn) return false;
+                if (fFin && f > fFin) return false;
+                return true;
+            });
+        }
         
-        let pagoCarlos = 0, pagoDaniel = 0;
-        let gastoAmbos = 0, gastoCarlos = 0, gastoDaniel = 0;
+        let pagoCarlos = 0, pagoDaniel = 0, gastoAmbos = 0, gastoCarlos = 0, gastoDaniel = 0;
         let listaValidos = [];
 
-        // Filtro estricto: Obviar los que dicen "Pendiente" en Quién pagó, pues nadie desembolsó.
         items.forEach(i => {
             let p = parseFloat(i.Precio) || 0;
             if (p > 0 && i.Quien_Pago !== 'Pendiente' && (i.Estado === 'Comprado' || i.Estado === 'Comprado_Bloqueado' || i.Origen === 'Agrupación')) {
-                listaValidos.push(i); // Para el desglose
+                listaValidos.push(i); 
                 if(i.Quien_Pago === 'Carlos') pagoCarlos += p;
                 if(i.Quien_Pago === 'Daniel') pagoDaniel += p;
-
                 if(i.Para === 'Ambos') { gastoAmbos += p; }
                 else if(i.Para === 'Carlos') { gastoCarlos += p; }
                 else if(i.Para === 'Daniel') { gastoDaniel += p; }
@@ -438,7 +480,6 @@ const app = {
         let debeCarlos = (gastoAmbos / 2) + gastoCarlos;
         let debeDaniel = (gastoAmbos / 2) + gastoDaniel;
 
-        // Determinar Rango de Fechas
         const fechas = items.map(m => m.Fecha ? m.Fecha.substring(0,10) : "2026-01-01").sort();
         const rangoMsg = fechas.length > 0 ? `Período: ${formatearFechaAmigable(fechas[0])} al ${formatearFechaAmigable(fechas[fechas.length-1])}` : "Período Actual";
         document.getElementById('pagos-rango-fechas').innerText = rangoMsg;
@@ -473,7 +514,6 @@ const app = {
             </div>
         `;
 
-        // Crear la lista detallada de los artículos pagados
         let listaHTML = '<p class="font-bold text-gray-700 mb-2">Artículos Contabilizados en el Cuadre:</p><ul class="text-xs space-y-1 bg-white border border-gray-200 rounded p-2 h-48 overflow-y-auto">';
         if(listaValidos.length === 0) listaHTML += '<li class="text-gray-400">No hay artículos con precio registrado y pagado.</li>';
         listaValidos.forEach(i => {
@@ -500,7 +540,6 @@ const app = {
         const deudasDiv = document.getElementById('pagos-resultado-final');
         deudasDiv.innerText = msg;
         deudasDiv.className = `p-4 rounded-lg font-black text-center mt-4 border ${bgClass}`;
-        
         document.getElementById('resultados-pagos').classList.remove('hidden');
     },
 
@@ -519,7 +558,6 @@ const app = {
         if(!fIn || !fFin) return alert("Selecciona fecha de inicio y fin para buscar.");
 
         let items = state.mercado.filter(m => m.Estado === 'Comprado' || m.Estado === 'Comprado_Bloqueado');
-
         items = items.filter(m => {
             let f = m.Fecha;
             if(!f) {
@@ -558,5 +596,3 @@ const app = {
         document.getElementById('contenedor-resultados-historicos').classList.remove('hidden');
     }
 };
-
-document.querySelector('[onclick="ui.toggleModal(\'modal-receta\')"]').setAttribute('onclick', 'app.abrirNuevaReceta()');
