@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbyVkw1YwTY69HbKGabJKrrRBzwjxb8zEScpTStShHBJmVTX9s0M8jR4I5_Oad9MHv4/exec"; // NO OLVIDES PONER TU URL REAL
+const API_URL = "https://script.google.com/macros/s/AKfycbw-6tApaA9wllprggMCC7Bj4Iy94Qaw-iWb2lDmJMwW1uGa5sn6Ix4b12Pw2oM8yYw/exec"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
@@ -36,7 +36,6 @@ async function init() {
     }
 }
 
-// NUEVO: Soporte para llamadas silenciosas (background)
 async function api(payload, silent = false) {
     payload.token = auth.getToken(); 
     if(!silent) document.getElementById('sync-spinner').classList.remove('hidden');
@@ -57,7 +56,7 @@ async function api(payload, silent = false) {
 }
 
 async function syncData() {
-    const data = await api({ action: 'sync' });
+    const data = await api({ action: 'sync' }, true);
     if(!data) return;
     state = {...state, ...data, tempIngredientes: []};
     
@@ -80,15 +79,9 @@ const ui = {
     toggleModal: (id) => document.getElementById(id).classList.toggle('hidden')
 };
 
-function renderAll() {
-    renderRecetario();
-    renderPlan();
-    renderMercado();
-}
+function renderAll() { renderRecetario(); renderPlan(); renderMercado(); }
 
-function actualizarDiccionario() {
-    document.getElementById('datalist-dicc').innerHTML = state.diccionario.map(d => `<option value="${d.Articulo}">`).join('');
-}
+function actualizarDiccionario() { document.getElementById('datalist-dicc').innerHTML = state.diccionario.map(d => `<option value="${d.Articulo}">`).join(''); }
 
 function formatearFechaAmigable(fechaStr) {
     if(!fechaStr) return 'Fecha Inválida';
@@ -109,8 +102,8 @@ function renderRecetario() {
             <div class="flex justify-between items-start mb-2">
                 <h4 class="font-bold text-gray-800 text-lg">${r.Nombre}</h4>
                 <div class="flex gap-2">
-                    <button onclick="app.abrirEditarReceta('${r.ID_Plato}')" class="text-blue-500 text-xs font-bold bg-blue-50 px-2 py-1 rounded shadow-sm hover:bg-blue-100">Editar</button>
-                    <button onclick="app.eliminarReceta('${r.ID_Plato}')" class="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded shadow-sm hover:bg-red-100">Eliminar</button>
+                    <button onclick="app.abrirEditarReceta('${r.ID_Plato}')" class="text-blue-500 text-xs font-bold bg-blue-50 px-2 py-1 rounded">Editar</button>
+                    <button onclick="app.eliminarReceta('${r.ID_Plato}')" class="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded">Borrar</button>
                 </div>
             </div>
             <div class="text-xs bg-gray-50 p-2 rounded text-gray-600 divide-y divide-gray-200">
@@ -121,7 +114,6 @@ function renderRecetario() {
             </div>
         </div>`;
     }).join('');
-
     document.getElementById('plan-plato').innerHTML = state.recetario.map(r => `<option value="${r.ID_Plato}">${r.Nombre}</option>`).join('');
 }
 
@@ -181,7 +173,7 @@ function renderMercado() {
         return acc;
     }, {});
 
-    let infoFiltro = (fInicio || fFin) ? `🗓️ Mostrando compras para: ${fInicio||'∞'} hasta ${fFin||'∞'}` : `🗓️ Mostrando todo el mercado de la semana`;
+    let infoFiltro = (fInicio || fFin) ? `🗓️ Mercado del: ${fInicio||'∞'} al ${fFin||'∞'}` : `🗓️ Todo el mercado de la semana`;
     let html = `<div class="bg-blue-50 text-blue-800 font-bold p-3 rounded-lg text-center mb-4 text-xs border border-blue-200 shadow-sm">${infoFiltro}</div>`;
     
     if(items.length === 0) html += '<p class="text-center text-gray-400 mt-6 font-bold">No hay compras para estas fechas.</p>';
@@ -201,10 +193,12 @@ function renderMercado() {
         arts.forEach(a => {
             const isBlocked = a.Estado === 'Comprado_Bloqueado';
             const isComprado = a.Estado === 'Comprado';
+            const txtUnidad = a.Origen === 'Agrupación' ? '(Total)' : `(${a.Cantidad || 1} ${a.Unidad})`; // Muestra Cantidad
+            
             html += `
             <div id="row-${a.ID_Item}" class="flex flex-wrap gap-2 items-center p-2 border-b border-gray-100 last:border-0 bg-gray-50 rounded">
                 <input type="checkbox" class="chk-estado w-4 h-4 accent-blue-600" ${isComprado||isBlocked ? 'checked' : ''} ${isBlocked ? 'disabled' : ''} onchange="app.updateItem('${a.ID_Item}')">
-                <span class="font-bold text-xs flex-1 ${isBlocked ? 'line-through text-gray-400' : 'text-gray-800'}">${a.Articulo} <span class="font-normal text-blue-600">(${a.Unidad})</span></span>
+                <span class="font-bold text-xs flex-1 ${isBlocked ? 'line-through text-gray-400' : 'text-gray-800'}">${a.Articulo} <span class="font-normal text-blue-600">${txtUnidad}</span></span>
                 
                 <select class="sel-para border p-1 text-[10px] rounded font-bold text-gray-700 outline-none" ${isBlocked ? 'disabled' : ''} onchange="app.updateItem('${a.ID_Item}')">
                     <option value="Ambos" ${a.Para==='Ambos'?'selected':''}>Para: Ambos</option>
@@ -226,7 +220,7 @@ function renderMercado() {
     document.getElementById('lista-mercado').innerHTML = html;
 }
 
-// ================= CONTROLADOR PRINCIPAL =================
+// ================= CONTROLADOR PRINCIPAL (OPTIMISTIC UI = RAPIDEZ TOTAL) =================
 const app = {
     // ---- Recetario ----
     abrirNuevaReceta: () => {
@@ -246,10 +240,12 @@ const app = {
         app.renderTempIngredientes();
         ui.toggleModal('modal-receta');
     },
-    eliminarReceta: async (id) => {
+    eliminarReceta: (id) => {
         if(!confirm("¿Seguro que deseas eliminar este plato definitivamente?")) return;
-        await api({ action: 'delete_receta', id: id });
-        syncData();
+        // Optimistic Delete
+        state.recetario = state.recetario.filter(r => r.ID_Plato !== id);
+        renderRecetario();
+        api({ action: 'delete_receta', id: id }, true); // Envío silencioso
     },
     addIngredienteTemp: () => {
         const art = document.getElementById('rec-ing-art').value;
@@ -263,8 +259,7 @@ const app = {
             para: document.getElementById('rec-ing-para') ? document.getElementById('rec-ing-para').value : 'Ambos',
             quien_pago: document.getElementById('rec-ing-quien') ? document.getElementById('rec-ing-quien').value : 'Pendiente'
         });
-        document.getElementById('rec-ing-art').value = '';
-        document.getElementById('rec-ing-cant').value = '';
+        document.getElementById('rec-ing-art').value = ''; document.getElementById('rec-ing-cant').value = '';
         app.renderTempIngredientes();
     },
     removerIngredienteTemp: (index) => {
@@ -283,25 +278,34 @@ const app = {
                 <button type="button" onclick="app.removerIngredienteTemp(${index})" class="text-red-500 font-bold px-3 py-1 bg-red-50 rounded text-xs hover:bg-red-100">X</button>
             </li>`).join('');
     },
-    guardarReceta: async () => {
+    guardarReceta: () => {
         const nombre = document.getElementById('rec-nombre').value;
         if(!nombre) return alert("Falta el nombre de la receta");
 
         const btn = document.getElementById('btn-save-receta');
-        if(btn) { btn.innerText = 'Guardando...'; btn.disabled = true; }
+        if(btn) btn.innerText = 'Guardando...'; 
 
-        await api({
-            action: state.editandoPlatoID ? 'update_receta' : 'save_receta',
-            data: { id: state.editandoPlatoID || "PLT-" + Date.now(), nombre: nombre, ingredientes: JSON.stringify(state.tempIngredientes) }
-        });
+        const recetaID = state.editandoPlatoID || "PLT-" + Date.now();
+        const nuevaReceta = { ID_Plato: recetaID, Nombre: nombre, Ingredientes_JSON: JSON.stringify(state.tempIngredientes) };
         
-        if(btn) { btn.innerText = 'Guardar'; btn.disabled = false; }
+        // Optimistic Update
+        if(state.editandoPlatoID) {
+            const idx = state.recetario.findIndex(r => r.ID_Plato === state.editandoPlatoID);
+            if(idx !== -1) state.recetario[idx] = nuevaReceta;
+        } else {
+            state.recetario.push(nuevaReceta);
+        }
+        
+        renderRecetario();
         ui.toggleModal('modal-receta');
-        syncData();
+        if(btn) btn.innerText = 'Guardar';
+        
+        // Envío Silencioso
+        api({ action: state.editandoPlatoID ? 'update_receta' : 'save_receta', data: { id: recetaID, nombre: nombre, ingredientes: nuevaReceta.Ingredientes_JSON } }, true);
     },
 
     // ---- Plan ----
-    guardarPlan: async () => {
+    guardarPlan: () => {
         const fecha = document.getElementById('plan-fecha').value; 
         const id_plato = document.getElementById('plan-plato').value;
         const plato = state.recetario.find(p => p.ID_Plato === id_plato);
@@ -310,44 +314,57 @@ const app = {
         if(!plato) return alert("Selecciona un plato.");
 
         const btn = document.getElementById('btn-save-plan');
-        btn.innerText = 'Procesando...'; btn.disabled = true;
+        btn.innerText = '¡Plato Programado!'; 
+        setTimeout(() => { btn.innerText = 'Añadir al Calendario'; }, 1500);
 
-        await api({
-            action: 'save_plan', semana_id: state.semanaActual, fecha: fecha,
-            id_plato: plato.ID_Plato, nombre_plato: plato.Nombre, ingredientes: plato.Ingredientes_JSON
-        });
+        // Optimistic Update: Escribir localmente de inmediato
+        state.plan.push({ Semana_ID: state.semanaActual, Fecha: fecha, ID_Plato: plato.ID_Plato, Nombre_Plato: plato.Nombre });
         
-        alert("✅ Plato programado exitosamente");
-        btn.innerText = 'Añadir al Calendario'; btn.disabled = false;
+        const ingredientes = JSON.parse(plato.Ingredientes_JSON);
+        ingredientes.forEach(ing => {
+            state.mercado.push({
+                ID_Item: "ITM-" + Date.now() + Math.floor(Math.random() * 1000), Semana_ID: state.semanaActual,
+                Articulo: ing.articulo, Categoria: ing.categoria, Unidad: ing.unidad, Cantidad: ing.cantidad || 1,
+                Para: ing.para || "Ambos", Quien_Pago: ing.quien_pago || "Pendiente", Precio: 0, Estado: "Pendiente", Origen: "Receta", Fecha: fecha
+            });
+        });
+
+        renderPlan();
+        renderMercado();
         document.getElementById('plan-fecha').value = '';
-        syncData();
+
+        // Envío Silencioso
+        api({ action: 'save_plan', semana_id: state.semanaActual, fecha: fecha, id_plato: plato.ID_Plato, nombre_plato: plato.Nombre, ingredientes: plato.Ingredientes_JSON }, true);
     },
 
     // ---- Mercado ----
-    guardarManual: async () => {
+    guardarManual: () => {
         const btn = document.getElementById('btn-save-manual');
-        btn.innerText = 'Guardando...'; btn.disabled = true;
+        btn.innerText = 'Guardando...'; 
 
-        await api({
-            action: 'add_mercado',
-            data: {
-                id: "ITM-" + Date.now(), semana_id: state.semanaActual,
-                articulo: document.getElementById('man-art').value,
-                categoria: document.getElementById('man-cat').value,
-                unidad: document.getElementById('man-uni').value,
-                para: document.getElementById('man-para').value,
-                quien_pago: document.getElementById('man-quien').value,
-                precio: document.getElementById('man-precio').value || 0,
-                estado: "Pendiente",
-                fecha: new Date().toISOString().substring(0, 10) 
-            }
+        const newItem = {
+            id: "ITM-" + Date.now(), semana_id: state.semanaActual,
+            articulo: document.getElementById('man-art').value, cantidad: document.getElementById('man-cant').value || 1,
+            categoria: document.getElementById('man-cat').value, unidad: document.getElementById('man-uni').value,
+            para: document.getElementById('man-para').value, quien_pago: document.getElementById('man-quien').value,
+            precio: document.getElementById('man-precio').value || 0, estado: "Pendiente", fecha: new Date().toISOString().substring(0, 10) 
+        };
+
+        // Optimistic Push
+        state.mercado.push({
+            ID_Item: newItem.id, Semana_ID: newItem.semana_id, Articulo: newItem.articulo, Categoria: newItem.categoria, 
+            Unidad: newItem.unidad, Cantidad: newItem.cantidad, Para: newItem.para, Quien_Pago: newItem.quien_pago, 
+            Precio: newItem.precio, Estado: newItem.estado, Origen: "Manual", Fecha: newItem.fecha
         });
-        btn.innerText = 'Agregar'; btn.disabled = false;
+
+        renderMercado();
         ui.toggleModal('modal-item-manual');
-        syncData();
+        if(btn) btn.innerText = 'Agregar';
+
+        // Envío silencioso
+        api({ action: 'add_mercado', data: newItem }, true);
     },
 
-    // NUEVA VELOCIDAD: INTERFAZ OPTIMISTA
     updateItem: (id) => {
         const row = document.getElementById(`row-${id}`);
         const para = row.querySelector('.sel-para').value;
@@ -355,55 +372,59 @@ const app = {
         const precio = row.querySelector('.inp-precio').value;
         const estado = row.querySelector('.chk-estado').checked ? "Comprado" : "Pendiente";
 
-        // 1. Modificar la memoria local de la app inmediatamente
+        // Interfaz Optimista: Actualizar Memoria Local
         const item = state.mercado.find(m => m.ID_Item === id);
-        if(item) {
-            item.Para = para;
-            item.Quien_Pago = quien;
-            item.Precio = precio;
-            item.Estado = estado;
-        }
+        if(item) { item.Para = para; item.Quien_Pago = quien; item.Precio = precio; item.Estado = estado; }
 
-        // 2. Modificar visualmente la fila para dar la sensación de velocidad
+        // Actualizar UI Visualmente
         const textoArticulo = row.querySelector('span.flex-1');
         if (estado === 'Comprado' || estado === 'Comprado_Bloqueado') {
-            textoArticulo.classList.add('line-through', 'text-gray-400');
-            textoArticulo.classList.remove('text-gray-800');
+            textoArticulo.classList.add('line-through', 'text-gray-400'); textoArticulo.classList.remove('text-gray-800');
         } else {
-            textoArticulo.classList.remove('line-through', 'text-gray-400');
-            textoArticulo.classList.add('text-gray-800');
+            textoArticulo.classList.remove('line-through', 'text-gray-400'); textoArticulo.classList.add('text-gray-800');
         }
 
-        // 3. Enviar los datos al backend SIN bloquear la pantalla y SIN mostrar el logo de carga.
-        // True indica que el API correrá en modo Silencioso. No requiere SyncData posterior.
-        api({
-            action: 'update_item',
-            data: { id, para, quien_pago: quien, precio, estado }
-        }, true); 
+        // Envío Silencioso (No traba la app)
+        api({ action: 'update_item', data: { id, para, quien_pago: quien, precio, estado } }, true); 
     },
 
-    bloquearCategoria: async (cat) => {
+    bloquearCategoria: (cat) => {
         const cont = document.getElementById(`cat-head-${cat}`);
         const totalInput = cont.querySelector('.cat-total').value;
-        if(!totalInput || parseFloat(totalInput) <= 0) return alert("Por favor, ingresa el Costo S/ en el cuadro negro antes de bloquear.");
+        if(!totalInput || parseFloat(totalInput) <= 0) return alert("Ingresa el Costo S/ en el cuadro antes de bloquear.");
         
         const para = cont.querySelector('.cat-para').value;
         const quien = cont.querySelector('.cat-quien').value;
 
-        await api({ action: 'block_categoria', semana_id: state.semanaActual, categoria: cat, total: totalInput, para: para, quien_pago: quien });
-        syncData();
+        // Optimistic Block: Cambia todo instantáneamente en la app
+        state.mercado.forEach(m => {
+            if(m.Semana_ID === state.semanaActual && m.Categoria === cat && m.Estado === "Pendiente") {
+                m.Para = para; m.Quien_Pago = quien; m.Precio = 0; m.Estado = "Comprado_Bloqueado";
+            }
+        });
+        state.mercado.push({
+            ID_Item: "ITM-" + Date.now(), Semana_ID: state.semanaActual, Articulo: "TOTAL " + cat, Categoria: cat, 
+            Unidad: "soles", Cantidad: 1, Para: para, Quien_Pago: quien, Precio: totalInput, Estado: "Comprado", 
+            Origen: "Agrupación", Fecha: new Date().toISOString().substring(0, 10)
+        });
+
+        renderMercado();
+        api({ action: 'block_categoria', semana_id: state.semanaActual, categoria: cat, total: totalInput, para: para, quien_pago: quien }, true);
     },
 
-    // ---- PAGOS (Cálculos de Cuadre) ----
+    // ---- PAGOS (Cálculos de Cuadre Corregidos) ----
     calcularPagos: () => {
-        const items = state.mercado.filter(m => m.Semana_ID === state.semanaActual && (m.Estado === 'Comprado' || m.Estado === 'Comprado_Bloqueado'));
+        const items = state.mercado.filter(m => m.Semana_ID === state.semanaActual);
         
         let pagoCarlos = 0, pagoDaniel = 0;
         let gastoAmbos = 0, gastoCarlos = 0, gastoDaniel = 0;
+        let listaValidos = [];
 
+        // Filtro estricto: Obviar los que dicen "Pendiente" en Quién pagó, pues nadie desembolsó.
         items.forEach(i => {
             let p = parseFloat(i.Precio) || 0;
-            if (p > 0) {
+            if (p > 0 && i.Quien_Pago !== 'Pendiente' && (i.Estado === 'Comprado' || i.Estado === 'Comprado_Bloqueado' || i.Origen === 'Agrupación')) {
+                listaValidos.push(i); // Para el desglose
                 if(i.Quien_Pago === 'Carlos') pagoCarlos += p;
                 if(i.Quien_Pago === 'Daniel') pagoDaniel += p;
 
@@ -417,48 +438,62 @@ const app = {
         let debeCarlos = (gastoAmbos / 2) + gastoCarlos;
         let debeDaniel = (gastoAmbos / 2) + gastoDaniel;
 
+        // Determinar Rango de Fechas
+        const fechas = items.map(m => m.Fecha ? m.Fecha.substring(0,10) : "2026-01-01").sort();
+        const rangoMsg = fechas.length > 0 ? `Período: ${formatearFechaAmigable(fechas[0])} al ${formatearFechaAmigable(fechas[fechas.length-1])}` : "Período Actual";
+        document.getElementById('pagos-rango-fechas').innerText = rangoMsg;
+
         document.getElementById('pagos-detalle').innerHTML = `
             <div class="text-left space-y-4 text-sm mt-4">
                 <div class="flex justify-between border-b border-gray-200 pb-2 font-black text-lg text-gray-800">
-                    <span>Costo Total del Mercado:</span> <span>S/ ${totalGeneral.toFixed(2)}</span>
+                    <span>Costo Total Pagado:</span> <span>S/ ${totalGeneral.toFixed(2)}</span>
                 </div>
-
                 <div>
-                    <p class="font-bold text-gray-700 mb-1">1. Desglose de Consumo:</p>
+                    <p class="font-bold text-gray-700 mb-1">1. Consumo Realizado:</p>
                     <ul class="text-gray-600 pl-2 space-y-1 bg-gray-50 p-2 rounded border border-gray-100">
                         <li class="flex justify-between"><span>Compartido (Ambos):</span> <span class="font-bold">S/ ${gastoAmbos.toFixed(2)}</span></li>
                         <li class="flex justify-between"><span>Solo consumió Carlos:</span> <span class="font-bold">S/ ${gastoCarlos.toFixed(2)}</span></li>
                         <li class="flex justify-between"><span>Solo consumió Daniel:</span> <span class="font-bold">S/ ${gastoDaniel.toFixed(2)}</span></li>
                     </ul>
                 </div>
-
                 <div>
                     <p class="font-bold text-gray-700 mb-1">2. Cuota Ideal (Mitad Compartido + Individual):</p>
                     <ul class="text-gray-600 pl-2 space-y-1 bg-blue-50 p-2 rounded border border-blue-100">
-                        <li class="flex justify-between font-bold text-blue-700"><span>A Carlos le tocaba aportar:</span> <span>S/ ${debeCarlos.toFixed(2)}</span></li>
-                        <li class="flex justify-between font-bold text-blue-700"><span>A Daniel le tocaba aportar:</span> <span>S/ ${debeDaniel.toFixed(2)}</span></li>
+                        <li class="flex justify-between font-bold text-blue-700"><span>Deuda Carlos:</span> <span>S/ ${debeCarlos.toFixed(2)}</span></li>
+                        <li class="flex justify-between font-bold text-blue-700"><span>Deuda Daniel:</span> <span>S/ ${debeDaniel.toFixed(2)}</span></li>
                     </ul>
                 </div>
-
                 <div>
-                    <p class="font-bold text-gray-700 mb-1">3. Pagos Físicos (Quién sacó de su billetera):</p>
+                    <p class="font-bold text-gray-700 mb-1">3. Pagos Físicos (Sacado de la billetera):</p>
                     <ul class="text-gray-600 pl-2 space-y-1 bg-green-50 p-2 rounded border border-green-100">
-                        <li class="flex justify-between font-bold text-green-700"><span>Carlos pagó en caja:</span> <span>S/ ${pagoCarlos.toFixed(2)}</span></li>
-                        <li class="flex justify-between font-bold text-green-700"><span>Daniel pagó en caja:</span> <span>S/ ${pagoDaniel.toFixed(2)}</span></li>
+                        <li class="flex justify-between font-bold text-green-700"><span>Carlos pagó:</span> <span>S/ ${pagoCarlos.toFixed(2)}</span></li>
+                        <li class="flex justify-between font-bold text-green-700"><span>Daniel pagó:</span> <span>S/ ${pagoDaniel.toFixed(2)}</span></li>
                     </ul>
                 </div>
             </div>
         `;
 
+        // Crear la lista detallada de los artículos pagados
+        let listaHTML = '<p class="font-bold text-gray-700 mb-2">Artículos Contabilizados en el Cuadre:</p><ul class="text-xs space-y-1 bg-white border border-gray-200 rounded p-2 h-48 overflow-y-auto">';
+        if(listaValidos.length === 0) listaHTML += '<li class="text-gray-400">No hay artículos con precio registrado y pagado.</li>';
+        listaValidos.forEach(i => {
+            listaHTML += `<li class="flex justify-between border-b border-gray-100 last:border-0 pb-1 pt-1">
+                <span class="truncate pr-2">${i.Articulo} <span class="text-gray-400 block text-[9px] uppercase">Para: ${i.Para} | Por: ${i.Quien_Pago}</span></span> 
+                <span class="font-bold whitespace-nowrap">S/ ${parseFloat(i.Precio).toFixed(2)}</span>
+            </li>`;
+        });
+        listaHTML += '</ul>';
+        document.getElementById('pagos-lista-articulos').innerHTML = listaHTML;
+
         let saldoCarlos = pagoCarlos - debeCarlos; 
-        let msg = "Cuentas saldadas. Nadie le debe a nadie.";
+        let msg = "Cuentas saldadas. Nadie debe nada.";
         let bgClass = "bg-gray-100 text-gray-800 border-gray-300";
         
         if(saldoCarlos > 0.05) { 
-            msg = `💵 Daniel debe transferirle a Carlos: S/ ${Math.abs(saldoCarlos).toFixed(2)}`;
+            msg = `💵 Daniel transfiere a Carlos: S/ ${Math.abs(saldoCarlos).toFixed(2)}`;
             bgClass = "bg-orange-100 text-orange-800 border-orange-200";
         } else if (saldoCarlos < -0.05) {
-            msg = `💵 Carlos debe transferirle a Daniel: S/ ${Math.abs(saldoCarlos).toFixed(2)}`;
+            msg = `💵 Carlos transfiere a Daniel: S/ ${Math.abs(saldoCarlos).toFixed(2)}`;
             bgClass = "bg-orange-100 text-orange-800 border-orange-200";
         }
         
@@ -495,16 +530,13 @@ const app = {
             return f >= fIn && f <= fFin;
         });
 
-        let total = 0;
-        let porCat = {};
-        let carlosConsume = 0, danielConsume = 0, ambosConsume = 0;
+        let total = 0, porCat = {}, carlosConsume = 0, danielConsume = 0, ambosConsume = 0;
 
         items.forEach(i => {
             let p = parseFloat(i.Precio) || 0;
             if (p > 0) {
                 total += p;
                 porCat[i.Categoria] = (porCat[i.Categoria] || 0) + p;
-
                 if(i.Para === 'Ambos') ambosConsume += p;
                 else if(i.Para === 'Carlos') carlosConsume += p;
                 else if(i.Para === 'Daniel') danielConsume += p;
@@ -518,13 +550,11 @@ const app = {
 
         document.getElementById('res-hist-total').innerText = `S/ ${total.toFixed(2)}`;
         document.getElementById('res-hist-cat').innerHTML = htmlCategorias || '<p class="text-xs text-gray-400">No hay datos de categoría.</p>';
-
         document.getElementById('res-hist-cons').innerHTML = `
             <li class="flex justify-between"><span>Compartido (Ambos):</span> <span class="font-bold">S/ ${ambosConsume.toFixed(2)}</span></li>
             <li class="flex justify-between"><span>Solo Carlos:</span> <span class="font-bold">S/ ${carlosConsume.toFixed(2)}</span></li>
             <li class="flex justify-between"><span>Solo Daniel:</span> <span class="font-bold">S/ ${danielConsume.toFixed(2)}</span></li>
         `;
-
         document.getElementById('contenedor-resultados-historicos').classList.remove('hidden');
     }
 };
