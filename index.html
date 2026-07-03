@@ -7,56 +7,74 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-gray-100 h-screen flex flex-col text-sm">
+<body class="bg-gray-100 h-screen flex flex-col text-sm relative">
     
     <!-- Spinner de Sincronización -->
     <div id="sync-spinner" class="hidden fixed top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded-full text-xs shadow z-50">Sincronizando...</div>
 
-    <header class="bg-white shadow-sm p-4 text-center font-bold text-lg text-gray-800 shrink-0">Gestión del Hogar</header>
+    <!-- PANTALLA DE LOGIN -->
+    <div id="login-screen" class="absolute inset-0 bg-white flex flex-col justify-center items-center z-50">
+        <h2 class="text-2xl font-bold mb-4">Acceso Seguro</h2>
+        <div class="w-3/4 max-w-sm">
+            <input type="password" id="token-input" placeholder="Ingrese el token" class="border p-3 mb-4 w-full rounded focus:outline-none focus:border-blue-500">
+            <button onclick="auth.guardarToken()" class="bg-blue-600 text-white font-bold px-4 py-3 rounded w-full shadow">Ingresar</button>
+        </div>
+    </div>
 
-    <main class="flex-1 overflow-y-auto p-4 pb-20">
-        
-        <section id="view-recetario" class="hidden space-y-4">
-            <button onclick="ui.toggleModal('modal-receta')" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow">+ Nuevo Plato</button>
-            <div id="lista-recetario" class="space-y-3"></div>
-        </section>
+    <!-- CONTENEDOR PRINCIPAL DE LA APP (Nace Oculto) -->
+    <div id="app-screen" class="hidden flex-col h-full w-full">
+        <!-- Header -->
+        <header class="bg-white shadow-sm p-4 flex justify-between items-center text-lg text-gray-800 shrink-0">
+            <span class="font-bold">Gestión del Hogar</span>
+            <button onclick="auth.cerrarSesion()" class="text-xs font-bold text-red-500">Salir</button>
+        </header>
 
-        <section id="view-plan" class="hidden space-y-4">
-            <div class="bg-white p-4 rounded-xl shadow-sm">
-                <h3 class="font-bold mb-2">Programar Almuerzo</h3>
-                <input type="date" id="plan-fecha" class="border p-2 w-full mb-2 rounded">
-                <select id="plan-plato" class="border p-2 w-full mb-3 rounded"></select>
-                <button onclick="app.guardarPlan()" class="w-full bg-green-600 text-white font-bold py-2 rounded">Añadir al Calendario</button>
-            </div>
-            <div id="lista-plan" class="grid grid-cols-1 gap-2"></div>
-        </section>
+        <!-- Vistas -->
+        <main class="flex-1 overflow-y-auto p-4 pb-20">
+            <!-- VISTA 1: RECETARIO -->
+            <section id="view-recetario" class="hidden space-y-4">
+                <button onclick="ui.toggleModal('modal-receta')" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow">+ Nuevo Plato</button>
+                <div id="lista-recetario" class="space-y-3"></div>
+            </section>
 
-        <section id="view-mercado" class="hidden space-y-4">
-            <button onclick="ui.toggleModal('modal-item-manual')" class="w-full border-2 border-dashed border-gray-400 text-gray-600 font-bold py-2 rounded-lg">+ Añadir Artículo Manual</button>
-            <div id="lista-mercado"></div>
-        </section>
+            <!-- VISTA 2: PLAN SEMANAL -->
+            <section id="view-plan" class="hidden space-y-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm">
+                    <h3 class="font-bold mb-2">Programar Almuerzo</h3>
+                    <input type="date" id="plan-fecha" class="border p-2 w-full mb-2 rounded">
+                    <select id="plan-plato" class="border p-2 w-full mb-3 rounded"></select>
+                    <button onclick="app.guardarPlan()" class="w-full bg-green-600 text-white font-bold py-2 rounded">Añadir al Calendario</button>
+                </div>
+                <div id="lista-plan" class="grid grid-cols-1 gap-2"></div>
+            </section>
 
-        <section id="view-reportes" class="hidden space-y-4">
-            <div class="bg-white p-4 rounded-xl shadow-sm">
-                <h3 class="font-bold text-lg mb-2">Resumen Semana Actual</h3>
-                <div id="reporte-gastos" class="grid grid-cols-2 gap-4 mb-4 text-center"></div>
-                <div id="reporte-deudas" class="p-3 bg-red-50 text-red-800 rounded font-bold text-center mb-4"></div>
-                <button onclick="app.cerrarSemana()" class="w-full bg-red-600 text-white font-bold py-3 rounded">CERRAR SEMANA</button>
-            </div>
-            <div class="bg-white p-4 rounded-xl shadow-sm">
-                <canvas id="chartHistorico"></canvas>
-            </div>
-        </section>
-    </main>
+            <!-- VISTA 3: MERCADO -->
+            <section id="view-mercado" class="hidden space-y-4">
+                <button onclick="ui.toggleModal('modal-item-manual')" class="w-full border-2 border-dashed border-gray-400 text-gray-600 font-bold py-2 rounded-lg">+ Añadir Artículo Manual</button>
+                <div id="lista-mercado"></div>
+            </section>
 
-    <!-- Navegación Inferior -->
-    <nav class="bg-white border-t flex justify-around p-3 pb-6 fixed bottom-0 w-full shrink-0">
-        <button id="btn-nav-recetario" onclick="ui.nav('recetario')" class="text-blue-600 font-bold text-xs flex flex-col items-center"><span>🍲</span>Recetario</button>
-        <button id="btn-nav-plan" onclick="ui.nav('plan')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>📅</span>Plan</button>
-        <button id="btn-nav-mercado" onclick="ui.nav('mercado')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>🛒</span>Mercado</button>
-        <button id="btn-nav-reportes" onclick="ui.nav('reportes')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>📊</span>Reportes</button>
-    </nav>
+            <!-- VISTA 4: REPORTES -->
+            <section id="view-reportes" class="hidden space-y-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm">
+                    <h3 class="font-bold text-lg mb-2">Resumen Semana Actual</h3>
+                    <div id="reporte-gastos" class="grid grid-cols-2 gap-4 mb-4 text-center"></div>
+                    <div id="reporte-deudas" class="p-3 bg-red-50 text-red-800 rounded font-bold text-center mb-4"></div>
+                    <button onclick="app.cerrarSemana()" class="w-full bg-red-600 text-white font-bold py-3 rounded">CERRAR SEMANA</button>
+                </div>
+            </section>
+        </main>
 
+        <!-- Navegación Inferior -->
+        <nav class="bg-white border-t flex justify-around p-3 pb-6 fixed bottom-0 w-full shrink-0">
+            <button id="btn-nav-recetario" onclick="ui.nav('recetario')" class="text-blue-600 font-bold text-xs flex flex-col items-center"><span>🍲</span>Recetario</button>
+            <button id="btn-nav-plan" onclick="ui.nav('plan')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>📅</span>Plan</button>
+            <button id="btn-nav-mercado" onclick="ui.nav('mercado')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>🛒</span>Mercado</button>
+            <button id="btn-nav-reportes" onclick="ui.nav('reportes')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>📊</span>Reportes</button>
+        </nav>
+    </div>
+
+    <!-- MODALES (Se mantienen igual) -->
     <div id="modal-receta" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div class="bg-white w-full max-w-md p-5 rounded-xl max-h-full overflow-y-auto">
             <h2 class="font-bold mb-3">Nueva Receta</h2>
