@@ -26,19 +26,19 @@
 
         <main class="flex-1 overflow-y-auto p-4 pb-24">
             
-            <!-- RECETARIO -->
+            <!-- VISTA 1: RECETARIO -->
             <section id="view-recetario" class="hidden space-y-4">
                 <button onclick="app.abrirNuevaReceta()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow">+ Nuevo Plato</button>
                 <div id="lista-recetario" class="space-y-3"></div>
             </section>
 
-            <!-- PLAN SEMANAL -->
+            <!-- VISTA 2: PLAN SEMANAL -->
             <section id="view-plan" class="hidden space-y-4">
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <h3 class="font-bold mb-3 text-gray-800">Programar Almuerzo</h3>
-                    <input type="date" id="plan-fecha" class="border border-gray-300 p-2 w-full mb-2 rounded focus:ring-2 focus:ring-blue-500">
-                    <select id="plan-plato" class="border border-gray-300 p-2 w-full mb-3 rounded focus:ring-2 focus:ring-blue-500"></select>
-                    <button id="btn-save-plan" onclick="app.guardarPlan()" class="w-full bg-green-600 text-white font-bold py-3 rounded shadow hover:bg-green-700 transition">Añadir al Calendario</button>
+                    <input type="date" id="plan-fecha" class="border border-gray-300 p-2 w-full mb-2 rounded">
+                    <select id="plan-plato" class="border border-gray-300 p-2 w-full mb-3 rounded"></select>
+                    <button id="btn-save-plan" onclick="app.guardarPlan()" class="w-full bg-green-600 text-white font-bold py-3 rounded shadow hover:bg-green-700">Añadir al Calendario</button>
                 </div>
                 
                 <div class="bg-gray-200 p-3 rounded-xl flex gap-2 items-center justify-between">
@@ -52,31 +52,65 @@
                 <div id="lista-plan" class="space-y-3 mt-2"></div>
             </section>
 
-            <!-- MERCADO -->
+            <!-- VISTA 3: MERCADO -->
             <section id="view-mercado" class="hidden space-y-4">
-                <button onclick="ui.toggleModal('modal-item-manual')" class="w-full border-2 border-dashed border-gray-400 text-gray-600 font-bold py-3 rounded-lg bg-white">+ Añadir Artículo Manual</button>
+                <div class="flex gap-2 mb-2">
+                    <button onclick="ui.toggleModal('modal-item-manual')" class="w-1/2 border-2 border-dashed border-gray-400 text-gray-600 font-bold py-2 rounded-lg bg-white">+ Manual</button>
+                    <button onclick="renderMercado()" class="w-1/2 bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg">🔄 Actualizar</button>
+                </div>
                 <div id="lista-mercado"></div>
             </section>
 
-            <!-- REPORTES -->
+            <!-- VISTA 4: PAGOS (La caja de la semana activa) -->
+            <section id="view-pagos" class="hidden space-y-4">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="font-bold text-lg mb-4 text-center">Cuentas Claras (Semana Actual)</h3>
+                    <button onclick="app.calcularPagos()" class="w-full bg-blue-600 text-white font-bold py-3 rounded shadow-md mb-4 hover:bg-blue-700">Calcular Pagos del Mercado</button>
+                    
+                    <div id="resultados-pagos" class="hidden">
+                        <div id="pagos-detalle"></div>
+                        <div id="pagos-resultado-final"></div>
+                        <button onclick="app.cerrarSemana()" class="w-full bg-red-600 text-white font-bold py-3 rounded shadow hover:bg-red-700">CERRAR SEMANA</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISTA 5: REPORTES (El histórico general) -->
             <section id="view-reportes" class="hidden space-y-4">
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="font-bold text-lg mb-4 text-center">Cierre de Semana</h3>
-                    <button onclick="app.calcularReportes()" class="w-full bg-blue-600 text-white font-bold py-3 rounded shadow-md mb-4 hover:bg-blue-700">Calcular Compras del Mercado</button>
-                    
-                    <div id="resultados-reporte" class="hidden">
-                        <div id="reporte-gastos" class="grid grid-cols-2 gap-4 mb-4 text-center"></div>
-                        <div id="reporte-deudas" class="p-4 bg-gray-50 text-gray-800 rounded-lg font-bold text-center mb-6 border border-gray-200"></div>
-                        <button onclick="app.cerrarSemana()" class="w-full bg-red-600 text-white font-bold py-3 rounded shadow hover:bg-red-700">CERRAR SEMANA</button>
+                    <h3 class="font-bold text-lg mb-3">Historial de Gastos</h3>
+                    <p class="text-xs text-gray-500 mb-3">Filtra las compras pasadas por fecha</p>
+                    <div class="flex gap-2 mb-3">
+                        <input type="date" id="rep-inicio" class="border p-2 text-sm w-full rounded bg-gray-50">
+                        <input type="date" id="rep-fin" class="border p-2 text-sm w-full rounded bg-gray-50">
+                    </div>
+                    <button onclick="app.generarReporteHistorico()" class="w-full bg-gray-800 text-white font-bold py-3 rounded shadow hover:bg-gray-900">Buscar Gastos</button>
+
+                    <div id="contenedor-resultados-historicos" class="hidden mt-6 space-y-5">
+                        <div class="text-center bg-gray-50 p-4 rounded-xl border border-gray-200">
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Gasto Total en el periodo</p>
+                            <p id="res-hist-total" class="font-black text-3xl text-gray-800 mt-1"></p>
+                        </div>
+
+                        <div>
+                            <p class="font-bold text-gray-700 mb-2 border-b pb-1">Desglose de Consumo:</p>
+                            <ul id="res-hist-cons" class="text-gray-600 space-y-1 text-sm"></ul>
+                        </div>
+
+                        <div>
+                            <p class="font-bold text-gray-700 mb-2 border-b pb-1">Gasto por Categoría:</p>
+                            <ul id="res-hist-cat" class="text-gray-600 space-y-1 text-sm"></ul>
+                        </div>
                     </div>
                 </div>
             </section>
         </main>
 
         <nav class="bg-white border-t flex justify-around p-3 pb-6 fixed bottom-0 w-full shrink-0 z-40">
-            <button id="btn-nav-recetario" onclick="ui.nav('recetario')" class="text-blue-600 font-bold text-xs flex flex-col items-center"><span>🍲</span>Recetario</button>
+            <button id="btn-nav-recetario" onclick="ui.nav('recetario')" class="text-blue-600 font-bold text-xs flex flex-col items-center"><span>🍲</span>Recetas</button>
             <button id="btn-nav-plan" onclick="ui.nav('plan')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>📅</span>Plan</button>
             <button id="btn-nav-mercado" onclick="ui.nav('mercado')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>🛒</span>Mercado</button>
+            <button id="btn-nav-pagos" onclick="ui.nav('pagos')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>💰</span>Pagos</button>
             <button id="btn-nav-reportes" onclick="ui.nav('reportes')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>📊</span>Reportes</button>
         </nav>
     </div>
@@ -95,7 +129,6 @@
                     <select id="rec-ing-cat" class="border p-2 w-1/5 rounded text-xs"><option>abarrotes</option><option>carnes</option><option>frutas</option><option>verduras</option><option>condimentos</option><option>otros</option></select>
                     <select id="rec-ing-uni" class="border p-2 w-1/5 rounded text-xs"><option>kg</option><option>bolsa</option><option>litros</option><option>unidad</option><option>soles</option></select>
                 </div>
-                <!-- NUEVO: Para y Quién Pagó por ingrediente -->
                 <div class="flex gap-1 mb-2">
                     <select id="rec-ing-para" class="border p-2 w-1/2 rounded text-xs font-bold"><option value="Ambos">Para: Ambos</option><option value="Carlos">Para: Carlos</option><option value="Daniel">Para: Daniel</option></select>
                     <select id="rec-ing-quien" class="border p-2 w-1/2 rounded text-xs font-bold"><option value="Pendiente">Pago: Pendiente</option><option value="Carlos">Pago: Carlos</option><option value="Daniel">Pago: Daniel</option></select>
