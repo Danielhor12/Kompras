@@ -56,30 +56,31 @@
             <section id="view-mercado" class="hidden space-y-4">
                 <div class="flex gap-2 mb-2">
                     <button onclick="ui.toggleModal('modal-item-manual')" class="w-1/2 border-2 border-dashed border-gray-400 text-gray-600 font-bold py-2 rounded-lg bg-white">+ Manual</button>
-                    <button onclick="renderMercado()" class="w-1/2 bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg">🔄 Actualizar</button>
+                    <button onclick="syncData()" class="w-1/2 bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg">🔄 Sincronizar</button>
                 </div>
                 <div id="lista-mercado"></div>
             </section>
 
-            <!-- VISTA 4: PAGOS (La caja de la semana activa) -->
+            <!-- VISTA 4: PAGOS -->
             <section id="view-pagos" class="hidden space-y-4">
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="font-bold text-lg mb-4 text-center">Cuentas Claras (Semana Actual)</h3>
-                    <button onclick="app.calcularPagos()" class="w-full bg-blue-600 text-white font-bold py-3 rounded shadow-md mb-4 hover:bg-blue-700">Calcular Pagos del Mercado</button>
+                    <h3 class="font-bold text-lg mb-4 text-center">Cuentas Claras</h3>
+                    <p id="pagos-rango-fechas" class="text-center text-xs text-blue-600 font-bold bg-blue-50 py-1 rounded mb-4"></p>
+                    <button onclick="app.calcularPagos()" class="w-full bg-blue-600 text-white font-bold py-3 rounded shadow-md mb-4 hover:bg-blue-700">Calcular Pagos de la Semana</button>
                     
                     <div id="resultados-pagos" class="hidden">
                         <div id="pagos-detalle"></div>
+                        <div id="pagos-lista-articulos" class="mt-4 border-t border-gray-200 pt-4"></div>
                         <div id="pagos-resultado-final"></div>
-                        <button onclick="app.cerrarSemana()" class="w-full bg-red-600 text-white font-bold py-3 rounded shadow hover:bg-red-700">CERRAR SEMANA</button>
+                        <button onclick="app.cerrarSemana()" class="w-full bg-red-600 text-white font-bold py-3 rounded shadow hover:bg-red-700 mt-4">CERRAR SEMANA</button>
                     </div>
                 </div>
             </section>
 
-            <!-- VISTA 5: REPORTES (El histórico general) -->
+            <!-- VISTA 5: REPORTES -->
             <section id="view-reportes" class="hidden space-y-4">
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                     <h3 class="font-bold text-lg mb-3">Historial de Gastos</h3>
-                    <p class="text-xs text-gray-500 mb-3">Filtra las compras pasadas por fecha</p>
                     <div class="flex gap-2 mb-3">
                         <input type="date" id="rep-inicio" class="border p-2 text-sm w-full rounded bg-gray-50">
                         <input type="date" id="rep-fin" class="border p-2 text-sm w-full rounded bg-gray-50">
@@ -91,12 +92,10 @@
                             <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Gasto Total en el periodo</p>
                             <p id="res-hist-total" class="font-black text-3xl text-gray-800 mt-1"></p>
                         </div>
-
                         <div>
                             <p class="font-bold text-gray-700 mb-2 border-b pb-1">Desglose de Consumo:</p>
                             <ul id="res-hist-cons" class="text-gray-600 space-y-1 text-sm"></ul>
                         </div>
-
                         <div>
                             <p class="font-bold text-gray-700 mb-2 border-b pb-1">Gasto por Categoría:</p>
                             <ul id="res-hist-cat" class="text-gray-600 space-y-1 text-sm"></ul>
@@ -148,9 +147,12 @@
     <div id="modal-item-manual" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div class="bg-white w-full max-w-md p-5 rounded-xl">
             <h2 class="font-bold mb-3">Agregar al Mercado</h2>
-            <input type="text" id="man-art" placeholder="Artículo" class="w-full border p-2 mb-2 rounded" list="datalist-dicc">
+            <div class="flex gap-2 mb-2">
+                <input type="text" id="man-art" placeholder="Artículo" class="w-1/2 border p-2 rounded" list="datalist-dicc">
+                <input type="number" id="man-cant" placeholder="Cant." class="w-1/4 border p-2 rounded" step="0.1">
+                <select id="man-uni" class="w-1/4 border p-2 rounded"><option>kg</option><option>bolsa</option><option>litros</option><option>unidad</option><option>soles</option></select>
+            </div>
             <select id="man-cat" class="w-full border p-2 mb-2 rounded"><option>abarrotes</option><option>carnes</option><option>frutas</option><option>verduras</option><option>condimentos</option><option>otros</option></select>
-            <select id="man-uni" class="w-full border p-2 mb-2 rounded"><option>kg</option><option>bolsa</option><option>litros</option><option>unidad</option><option>soles</option></select>
             <div class="flex gap-2 mb-3">
                 <select id="man-para" class="w-1/2 border p-2 rounded font-bold"><option>Ambos</option><option>Carlos</option><option>Daniel</option></select>
                 <select id="man-quien" class="w-1/2 border p-2 rounded font-bold"><option>Pendiente</option><option>Carlos</option><option>Daniel</option></select>
