@@ -1,4 +1,4 @@
-const API_URL = "TU_URL_DE_APPS_SCRIPT_AQUI"; // NO OLVIDES PONER TU URL REAL
+const API_URL = "https://script.google.com/macros/s/AKfycbyrsU47ZJKRny9YHR4Dv-BXmOhdr-h0WQ3lToMy-Nepda-wAljk39DV6zg9Z_TNkBw/exec"; // NO OLVIDES PONER TU URL REAL
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
