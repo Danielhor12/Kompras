@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbyrsU47ZJKRny9YHR4Dv-BXmOhdr-h0WQ3lToMy-Nepda-wAljk39DV6zg9Z_TNkBw/exec"; // RECUERDA PONER TU URL REAL
+const API_URL = "https://script.google.com/macros/s/AKfycbymSSbODOAq0AhS_Gy4mPEBPlCuzZgsjeC3EnwLmMj16r9V1M6kXkI54qeAILVaNms/exec"; // RECUERDA PONER TU URL REAL
 
 // ================= ESTADO LOCAL =================
 let state = {
