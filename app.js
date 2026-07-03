@@ -1,12 +1,12 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbyrsU47ZJKRny9YHR4Dv-BXmOhdr-h0WQ3lToMy-Nepda-wAljk39DV6zg9Z_TNkBw/exec"; // NO OLVIDES PONER TU URL REAL
-
+const API_URL = "https://script.google.com/macros/s/AKfycbxa_VuuYUpUa2ZLPHGzTFTX6JTbiJqAuF1Q9ugCZqf1Bpx6ZoYFr-P7EEnEEH2ke3g/exec"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
     semanaActual: null, tempIngredientes: [], editandoPlatoID: null,
-    tempPlanMeta: null // Almacena temporalmente los datos del plan antes de confirmar
+    tempPlanMeta: null
 };
 
+// ================= AUTENTICACIÓN =================
 const auth = {
     guardarToken: () => {
         const token = document.getElementById('token-input').value;
@@ -21,6 +21,7 @@ const auth = {
     getToken: () => localStorage.getItem('kompra_token')
 };
 
+// ================= INICIALIZACIÓN =================
 window.onload = init;
 window.addEventListener('focus', () => { if(auth.getToken()) syncData(); });
 
@@ -109,9 +110,13 @@ function renderRecetario() {
                 </div>
             </div>
             <div class="text-xs bg-gray-50 p-2 rounded text-gray-600 divide-y divide-gray-200">
-                ${ings.map(i => `<div class="py-1 flex justify-between items-center">
-                    <span><span class="font-bold">${i.cantidad||1} ${i.unidad}</span> ${i.articulo}</span> 
-                    <span class="text-gray-400 text-[10px] font-bold uppercase">Para: ${i.para} | Pago: ${i.quien_pago}</span>
+                ${ings.map(i => `
+                <div class="py-1 flex flex-col justify-center">
+                    <div class="flex justify-between items-center">
+                        <span><span class="font-bold">${i.cantidad||1} ${i.unidad}</span> ${i.articulo}</span> 
+                        <span class="text-gray-400 text-[10px] font-bold uppercase">Para: ${i.para} | Pago: ${i.quien_pago}</span>
+                    </div>
+                    ${i.comentario ? `<p class="text-[9px] italic text-blue-500 mt-1">"${i.comentario}"</p>` : ''}
                 </div>`).join('')}
             </div>
         </div>`;
@@ -207,11 +212,16 @@ function renderMercado() {
             const isBlocked = a.Estado === 'Comprado_Bloqueado';
             const isComprado = a.Estado === 'Comprado';
             const txtUnidad = a.Origen === 'Agrupación' ? '(Total)' : `(${a.Cantidad || 1} ${a.Unidad})`; 
+            const commentHtml = a.Comentario ? `<p class="text-[9px] italic text-blue-500 mt-1 font-bold">"${a.Comentario}"</p>` : '';
             
             html += `
             <div id="row-${a.ID_Item}" class="flex flex-wrap gap-2 items-center p-2 border-b border-gray-100 last:border-0 bg-gray-50 rounded">
                 <input type="checkbox" class="chk-estado w-4 h-4 accent-blue-600" ${isComprado||isBlocked ? 'checked' : ''} ${isBlocked ? 'disabled' : ''} onchange="app.updateItem('${a.ID_Item}')">
-                <span class="font-bold text-xs flex-1 ${isBlocked ? 'line-through text-gray-400' : 'text-gray-800'}">${a.Articulo} <span class="font-normal text-blue-600">${txtUnidad}</span></span>
+                
+                <div class="flex-1 flex flex-col">
+                    <span class="font-bold text-xs ${isBlocked ? 'line-through text-gray-400' : 'text-gray-800'}">${a.Articulo} <span class="font-normal text-blue-600">${txtUnidad}</span></span>
+                    ${commentHtml}
+                </div>
                 
                 <select class="sel-para border p-1 text-[10px] rounded font-bold text-gray-700 outline-none" ${isBlocked ? 'disabled' : ''} onchange="app.updateItem('${a.ID_Item}')">
                     <option value="Ambos" ${a.Para==='Ambos'?'selected':''}>Para: Ambos</option>
@@ -240,6 +250,7 @@ const app = {
         const prefix = contexto === 'rec' ? 'rec' : 'plan';
         const art = document.getElementById(`${prefix}-ing-art`).value;
         const cant = document.getElementById(`${prefix}-ing-cant`).value;
+        const com = document.getElementById(`${prefix}-ing-com`)?.value || '';
         if(!art) return alert("El nombre del artículo es obligatorio");
         
         state.tempIngredientes.push({
@@ -247,10 +258,12 @@ const app = {
             categoria: document.getElementById(`${prefix}-ing-cat`).value,
             unidad: document.getElementById(`${prefix}-ing-uni`).value,
             para: document.getElementById(`${prefix}-ing-para`).value,
-            quien_pago: document.getElementById(`${prefix}-ing-quien`).value
+            quien_pago: document.getElementById(`${prefix}-ing-quien`).value,
+            comentario: com
         });
         document.getElementById(`${prefix}-ing-art`).value = '';
         document.getElementById(`${prefix}-ing-cant`).value = '';
+        if(document.getElementById(`${prefix}-ing-com`)) document.getElementById(`${prefix}-ing-com`).value = '';
         app.renderTempIngredientes(contexto);
     },
     removerIngredienteTemp: (index, contexto) => {
@@ -268,6 +281,7 @@ const app = {
                 <div class="flex flex-col">
                     <span>${i.articulo} <span class="font-bold text-blue-600 ml-1">${i.cantidad} ${i.unidad}</span></span>
                     <span class="text-[10px] uppercase text-gray-400 font-bold">Para: ${i.para || 'Ambos'} | Pago: ${i.quien_pago || 'Pendiente'}</span>
+                    ${i.comentario ? `<span class="text-[9px] text-blue-400 italic">"${i.comentario}"</span>` : ''}
                 </div>
                 <button type="button" onclick="app.removerIngredienteTemp(${index}, '${contexto}')" class="text-red-500 font-bold px-3 py-1 bg-red-50 rounded text-xs hover:bg-red-100">X</button>
             </li>`).join('');
@@ -293,6 +307,9 @@ const app = {
         const nombre = document.getElementById('rec-nombre').value;
         if(!nombre) return alert("Falta el nombre de la receta");
 
+        const btn = document.getElementById('btn-save-receta');
+        if(btn) btn.innerText = 'Guardando...'; 
+
         const recetaID = state.editandoPlatoID || "PLT-" + Date.now();
         const nuevaReceta = { ID_Plato: recetaID, Nombre: nombre, Ingredientes_JSON: JSON.stringify(state.tempIngredientes) };
         
@@ -302,6 +319,7 @@ const app = {
         } else { state.recetario.push(nuevaReceta); }
         
         renderRecetario(); ui.toggleModal('modal-receta');
+        if(btn) btn.innerText = 'Guardar';
         api({ action: state.editandoPlatoID ? 'update_receta' : 'save_receta', data: { id: recetaID, nombre: nombre, ingredientes: nuevaReceta.Ingredientes_JSON } }, true);
     },
 
@@ -314,7 +332,6 @@ const app = {
         if(!fecha) return alert("Selecciona una fecha.");
         if(!plato) return alert("Selecciona un plato.");
 
-        // Guardamos los datos temporalmente
         state.tempPlanMeta = { fecha, id_plato: plato.ID_Plato, nombre_plato: plato.Nombre };
         state.tempIngredientes = JSON.parse(plato.Ingredientes_JSON || '[]');
         
@@ -330,14 +347,13 @@ const app = {
         const planID = "PLN-" + Date.now();
         const meta = state.tempPlanMeta;
 
-        // Optimistic Update
         state.plan.push({ Plan_ID: planID, Semana_ID: state.semanaActual, Fecha: meta.fecha, ID_Plato: meta.id_plato, Nombre_Plato: meta.nombre_plato });
         
         state.tempIngredientes.forEach(ing => {
             state.mercado.push({
                 ID_Item: "ITM-" + Date.now() + Math.floor(Math.random() * 1000), Semana_ID: state.semanaActual, Plan_ID: planID,
                 Articulo: ing.articulo, Categoria: ing.categoria, Unidad: ing.unidad, Cantidad: ing.cantidad || 1,
-                Para: ing.para || "Ambos", Quien_Pago: ing.quien_pago || "Pendiente", Precio: 0, Estado: "Pendiente", Origen: "Receta", Fecha: meta.fecha
+                Para: ing.para || "Ambos", Quien_Pago: ing.quien_pago || "Pendiente", Precio: 0, Estado: "Pendiente", Origen: "Receta", Fecha: meta.fecha, Comentario: ing.comentario || ""
             });
         });
 
@@ -345,17 +361,14 @@ const app = {
         document.getElementById('plan-fecha').value = '';
         ui.toggleModal('modal-plan-ingredientes');
 
-        // Envío Silencioso
         api({ action: 'save_plan', plan_id: planID, semana_id: state.semanaActual, fecha: meta.fecha, id_plato: meta.id_plato, nombre_plato: meta.nombre_plato, ingredientes: JSON.stringify(state.tempIngredientes) }, true);
     },
     cambiarFechaPlan: (planID, nuevaFecha) => {
         if(!nuevaFecha) return;
         
-        // Actualizar localmente el plan
         const planIdx = state.plan.findIndex(p => p.Plan_ID === planID);
         if(planIdx !== -1) state.plan[planIdx].Fecha = nuevaFecha;
 
-        // Actualizar localmente el mercado asociado
         state.mercado.forEach(m => { if(m.Plan_ID === planID) m.Fecha = nuevaFecha; });
 
         renderPlan(); renderMercado();
@@ -364,7 +377,6 @@ const app = {
     eliminarPlan: (planID) => {
         if(!confirm("¿Eliminar este plato del calendario y sus ingredientes del mercado?")) return;
         
-        // Borrar localmente
         state.plan = state.plan.filter(p => p.Plan_ID !== planID);
         state.mercado = state.mercado.filter(m => m.Plan_ID !== planID);
 
@@ -376,7 +388,7 @@ const app = {
     abrirModalManual: () => {
         const fInicio = document.getElementById('filtro-inicio').value;
         document.getElementById('man-fecha').value = fInicio || new Date().toISOString().substring(0, 10);
-        document.getElementById('man-art').value = ''; document.getElementById('man-precio').value = '';
+        document.getElementById('man-art').value = ''; document.getElementById('man-precio').value = ''; document.getElementById('man-com').value = '';
         ui.toggleModal('modal-item-manual');
     },
     guardarManual: () => {
@@ -389,35 +401,37 @@ const app = {
             articulo: document.getElementById('man-art').value, cantidad: document.getElementById('man-cant').value || 1,
             categoria: document.getElementById('man-cat').value, unidad: document.getElementById('man-uni').value,
             para: document.getElementById('man-para').value, quien_pago: document.getElementById('man-quien').value,
-            precio: document.getElementById('man-precio').value || 0, estado: "Pendiente", fecha: fechaAsignada 
+            precio: document.getElementById('man-precio').value || 0, estado: "Pendiente", fecha: fechaAsignada, comentario: document.getElementById('man-com').value || ""
         };
 
         state.mercado.push({
             ID_Item: newItem.id, Semana_ID: newItem.semana_id, Plan_ID: "", Articulo: newItem.articulo, Categoria: newItem.categoria, 
             Unidad: newItem.unidad, Cantidad: newItem.cantidad, Para: newItem.para, Quien_Pago: newItem.quien_pago, 
-            Precio: newItem.precio, Estado: newItem.estado, Origen: "Manual", Fecha: newItem.fecha
+            Precio: newItem.precio, Estado: newItem.estado, Origen: "Manual", Fecha: newItem.fecha, Comentario: newItem.comentario
         });
 
         renderMercado(); ui.toggleModal('modal-item-manual');
         if(btn) btn.innerText = 'Agregar';
         api({ action: 'add_mercado', data: newItem }, true);
     },
-updateItem: (id) => {
-    const row = document.getElementById(`row-${id}`);
-    const item = state.mercado.find(m => m.ID_Item === id);
-    if(item) {
-        item.Para = row.querySelector('.sel-para').value;
-        item.Precio = row.querySelector('.inp-precio').value;
-        item.Estado = row.querySelector('.chk-estado').checked ? "Comprado" : "Pendiente";
-    }
-    // Optimistic UI: Actualizamos visualmente primero
-    const texto = row.querySelector('span.flex-1');
-    if(item.Estado.includes('Comprado')) texto.classList.add('line-through');
-    else texto.classList.remove('line-through');
-    
-    // Envío silencioso
-    api({ action: 'update_item', data: { id, para: item.Para, precio: item.Precio, estado: item.Estado } }, true);
-},
+    updateItem: (id) => {
+        const row = document.getElementById(`row-${id}`);
+        const para = row.querySelector('.sel-para').value;
+        const quien = row.querySelector('.sel-quien').value;
+        const precio = row.querySelector('.inp-precio').value;
+        const estado = row.querySelector('.chk-estado').checked ? "Comprado" : "Pendiente";
+
+        const item = state.mercado.find(m => m.ID_Item === id);
+        if(item) { item.Para = para; item.Quien_Pago = quien; item.Precio = precio; item.Estado = estado; }
+
+        const textoArticulo = row.querySelector('span.font-bold');
+        if (estado === 'Comprado_Bloqueado') {
+            textoArticulo.classList.add('line-through', 'text-gray-400'); textoArticulo.classList.remove('text-gray-800');
+        } else {
+            textoArticulo.classList.remove('line-through', 'text-gray-400'); textoArticulo.classList.add('text-gray-800');
+        }
+        api({ action: 'update_item', data: { id, para, quien_pago: quien, precio, estado } }, true); 
+    },
     bloquearCategoria: (cat) => {
         const cont = document.getElementById(`cat-head-${cat}`);
         const totalInput = cont.querySelector('.cat-total').value;
@@ -436,7 +450,7 @@ updateItem: (id) => {
         state.mercado.push({
             ID_Item: "ITM-" + Date.now(), Semana_ID: state.semanaActual, Plan_ID: "", Articulo: "TOTAL " + cat, Categoria: cat, 
             Unidad: "soles", Cantidad: 1, Para: para, Quien_Pago: quien, Precio: totalInput, Estado: "Comprado", 
-            Origen: "Agrupación", Fecha: fechaBloqueo
+            Origen: "Agrupación", Fecha: fechaBloqueo, Comentario: "Cierre de categoría"
         });
 
         renderMercado();
@@ -465,6 +479,7 @@ updateItem: (id) => {
 
         items.forEach(i => {
             let p = parseFloat(i.Precio) || 0;
+            // Sumamos los marcados como Comprado, Comprado_Bloqueado o los de Agrupación (totales de categoría)
             if (p > 0 && i.Quien_Pago !== 'Pendiente' && (i.Estado === 'Comprado' || i.Estado === 'Comprado_Bloqueado' || i.Origen === 'Agrupación')) {
                 listaValidos.push(i); 
                 if(i.Quien_Pago === 'Carlos') pagoCarlos += p;
