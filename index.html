@@ -26,47 +26,42 @@
 
         <main class="flex-1 overflow-y-auto p-4 pb-24">
             
-            <!-- VISTA 1: RECETARIO -->
             <section id="view-recetario" class="hidden space-y-4">
                 <button onclick="app.abrirNuevaReceta()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow">+ Nuevo Plato</button>
                 <div id="lista-recetario" class="space-y-3"></div>
             </section>
 
-            <!-- VISTA 2: PLAN SEMANAL -->
             <section id="view-plan" class="hidden space-y-4">
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <h3 class="font-bold mb-3 text-gray-800">Programar Almuerzo</h3>
-                    <input type="date" id="plan-fecha" class="border border-gray-300 p-2 w-full mb-2 rounded">
-                    <select id="plan-plato" class="border border-gray-300 p-2 w-full mb-3 rounded"></select>
-                    <button id="btn-save-plan" onclick="app.guardarPlan()" class="w-full bg-green-600 text-white font-bold py-3 rounded shadow hover:bg-green-700">Añadir al Calendario</button>
+                    <input type="date" id="plan-fecha" class="border border-gray-300 p-2 w-full mb-2 rounded font-bold text-gray-700">
+                    <select id="plan-plato" class="border border-gray-300 p-2 w-full mb-3 rounded font-bold text-gray-700"></select>
+                    <button id="btn-preparar-plan" onclick="app.prepararPlan()" class="w-full bg-green-600 text-white font-bold py-3 rounded shadow hover:bg-green-700">Revisar Ingredientes y Añadir</button>
                 </div>
                 
                 <div class="bg-gray-200 p-3 rounded-xl flex gap-2 items-center justify-between">
                     <div class="flex gap-2 flex-1">
-                        <input type="date" id="filtro-inicio" class="border p-1 text-xs w-full rounded" onchange="renderPlan()">
-                        <input type="date" id="filtro-fin" class="border p-1 text-xs w-full rounded" onchange="renderPlan()">
+                        <input type="date" id="filtro-inicio" class="border p-1 text-xs w-full rounded font-bold text-gray-700" onchange="renderPlan()">
+                        <input type="date" id="filtro-fin" class="border p-1 text-xs w-full rounded font-bold text-gray-700" onchange="renderPlan()">
                     </div>
-                    <button onclick="document.getElementById('filtro-inicio').value=''; document.getElementById('filtro-fin').value=''; renderPlan();" class="text-xs font-bold bg-white text-gray-600 px-2 py-1 rounded">Limpiar</button>
+                    <button onclick="document.getElementById('filtro-inicio').value=''; document.getElementById('filtro-fin').value=''; renderPlan();" class="text-xs font-bold bg-white text-gray-600 px-2 py-1 rounded shadow-sm">Limpiar</button>
                 </div>
-
                 <div id="lista-plan" class="space-y-3 mt-2"></div>
             </section>
 
-            <!-- VISTA 3: MERCADO -->
             <section id="view-mercado" class="hidden space-y-4">
                 <div class="flex gap-2 mb-2">
-                    <button onclick="ui.toggleModal('modal-item-manual')" class="w-1/2 border-2 border-dashed border-gray-400 text-gray-600 font-bold py-2 rounded-lg bg-white">+ Manual</button>
-                    <button onclick="syncData()" class="w-1/2 bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg">🔄 Sincronizar</button>
+                    <button onclick="app.abrirModalManual()" class="w-1/2 border-2 border-dashed border-gray-400 text-gray-600 font-bold py-2 rounded-lg bg-white">+ Manual</button>
+                    <button onclick="syncData()" class="w-1/2 bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm">🔄 Sincronizar</button>
                 </div>
                 <div id="lista-mercado"></div>
             </section>
 
-            <!-- VISTA 4: PAGOS -->
             <section id="view-pagos" class="hidden space-y-4">
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                     <h3 class="font-bold text-lg mb-4 text-center">Cuentas Claras</h3>
                     <p id="pagos-rango-fechas" class="text-center text-xs text-blue-600 font-bold bg-blue-50 py-1 rounded mb-4"></p>
-                    <button onclick="app.calcularPagos()" class="w-full bg-blue-600 text-white font-bold py-3 rounded shadow-md mb-4 hover:bg-blue-700">Calcular Pagos de la Semana</button>
+                    <button onclick="app.calcularPagos()" class="w-full bg-blue-600 text-white font-bold py-3 rounded shadow-md mb-4 hover:bg-blue-700">Calcular Pagos del Mercado</button>
                     
                     <div id="resultados-pagos" class="hidden">
                         <div id="pagos-detalle"></div>
@@ -77,19 +72,18 @@
                 </div>
             </section>
 
-            <!-- VISTA 5: REPORTES -->
             <section id="view-reportes" class="hidden space-y-4">
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                     <h3 class="font-bold text-lg mb-3">Historial de Gastos</h3>
                     <div class="flex gap-2 mb-3">
-                        <input type="date" id="rep-inicio" class="border p-2 text-sm w-full rounded bg-gray-50">
-                        <input type="date" id="rep-fin" class="border p-2 text-sm w-full rounded bg-gray-50">
+                        <input type="date" id="rep-inicio" class="border p-2 text-sm w-full rounded bg-gray-50 font-bold text-gray-700">
+                        <input type="date" id="rep-fin" class="border p-2 text-sm w-full rounded bg-gray-50 font-bold text-gray-700">
                     </div>
                     <button onclick="app.generarReporteHistorico()" class="w-full bg-gray-800 text-white font-bold py-3 rounded shadow hover:bg-gray-900">Buscar Gastos</button>
 
                     <div id="contenedor-resultados-historicos" class="hidden mt-6 space-y-5">
                         <div class="text-center bg-gray-50 p-4 rounded-xl border border-gray-200">
-                            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Gasto Total en el periodo</p>
+                            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Gasto Total</p>
                             <p id="res-hist-total" class="font-black text-3xl text-gray-800 mt-1"></p>
                         </div>
                         <div>
@@ -106,7 +100,7 @@
         </main>
 
         <nav class="bg-white border-t flex justify-around p-3 pb-6 fixed bottom-0 w-full shrink-0 z-40">
-            <button id="btn-nav-recetario" onclick="ui.nav('recetario')" class="text-blue-600 font-bold text-xs flex flex-col items-center"><span>🍲</span>Recetas</button>
+            <button id="btn-nav-recetario" onclick="ui.nav('recetario')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>🍲</span>Recetas</button>
             <button id="btn-nav-plan" onclick="ui.nav('plan')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>📅</span>Plan</button>
             <button id="btn-nav-mercado" onclick="ui.nav('mercado')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>🛒</span>Mercado</button>
             <button id="btn-nav-pagos" onclick="ui.nav('pagos')" class="text-gray-500 font-bold text-xs flex flex-col items-center"><span>💰</span>Pagos</button>
@@ -114,7 +108,7 @@
         </nav>
     </div>
 
-    <!-- MODAL RECETA -->
+    <!-- MODAL RECETA (Global) -->
     <div id="modal-receta" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div class="bg-white w-full max-w-md p-5 rounded-xl max-h-full overflow-y-auto">
             <h2 id="titulo-modal-receta" class="font-bold mb-3 text-lg">Nueva Receta</h2>
@@ -132,7 +126,7 @@
                     <select id="rec-ing-para" class="border p-2 w-1/2 rounded text-xs font-bold"><option value="Ambos">Para: Ambos</option><option value="Carlos">Para: Carlos</option><option value="Daniel">Para: Daniel</option></select>
                     <select id="rec-ing-quien" class="border p-2 w-1/2 rounded text-xs font-bold"><option value="Pendiente">Pago: Pendiente</option><option value="Carlos">Pago: Carlos</option><option value="Daniel">Pago: Daniel</option></select>
                 </div>
-                <button type="button" onclick="app.addIngredienteTemp()" class="w-full bg-blue-100 text-blue-700 py-2 rounded text-xs font-bold hover:bg-blue-200 transition">+ Añadir Ingrediente</button>
+                <button type="button" onclick="app.addIngredienteTemp('rec')" class="w-full bg-blue-100 text-blue-700 py-2 rounded text-xs font-bold hover:bg-blue-200 transition">+ Añadir Ingrediente</button>
                 <ul id="lista-ingredientes-temp" class="text-xs mt-3 space-y-1 bg-white rounded p-2 border border-gray-200 empty:hidden"></ul>
             </div>
             
@@ -143,10 +137,39 @@
         </div>
     </div>
 
+    <!-- NUEVO MODAL: AJUSTAR PLAN SEMANAL -->
+    <div id="modal-plan-ingredientes" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+        <div class="bg-white w-full max-w-md p-5 rounded-xl max-h-full overflow-y-auto border-t-4 border-green-500">
+            <h2 class="font-bold mb-1 text-lg">Ajustar Ingredientes</h2>
+            <p id="plan-modal-subtitulo" class="text-xs text-gray-500 mb-4 font-bold uppercase"></p>
+            
+            <div class="bg-green-50 p-3 rounded mb-4 border border-green-200">
+                <div class="flex gap-1 mb-2">
+                    <input type="text" id="plan-ing-art" placeholder="Añadir extra..." class="border border-green-300 p-2 w-2/5 rounded text-xs focus:ring-1 focus:ring-green-500" list="datalist-dicc">
+                    <input type="number" id="plan-ing-cant" placeholder="Cant." class="border border-green-300 p-2 w-1/5 rounded text-xs focus:ring-1 focus:ring-green-500" step="0.1">
+                    <select id="plan-ing-cat" class="border border-green-300 p-2 w-1/5 rounded text-xs bg-white"><option>abarrotes</option><option>carnes</option><option>frutas</option><option>verduras</option><option>condimentos</option><option>otros</option></select>
+                    <select id="plan-ing-uni" class="border border-green-300 p-2 w-1/5 rounded text-xs bg-white"><option>kg</option><option>bolsa</option><option>litros</option><option>unidad</option><option>soles</option></select>
+                </div>
+                <div class="flex gap-1 mb-2">
+                    <select id="plan-ing-para" class="border border-green-300 p-2 w-1/2 rounded text-xs font-bold bg-white"><option value="Ambos">Para: Ambos</option><option value="Carlos">Para: Carlos</option><option value="Daniel">Para: Daniel</option></select>
+                    <select id="plan-ing-quien" class="border border-green-300 p-2 w-1/2 rounded text-xs font-bold bg-white"><option value="Pendiente">Pago: Pendiente</option><option value="Carlos">Pago: Carlos</option><option value="Daniel">Pago: Daniel</option></select>
+                </div>
+                <button type="button" onclick="app.addIngredienteTemp('plan')" class="w-full bg-green-200 text-green-800 py-2 rounded text-xs font-bold hover:bg-green-300 transition">+ Añadir a este plan</button>
+                <ul id="lista-plan-ingredientes-temp" class="text-xs mt-3 space-y-1 bg-white rounded p-2 border border-green-100 shadow-sm empty:hidden"></ul>
+            </div>
+            
+            <div class="flex gap-2">
+                <button onclick="ui.toggleModal('modal-plan-ingredientes')" class="w-1/3 bg-gray-200 py-3 rounded font-bold text-gray-700 hover:bg-gray-300">Cancelar</button>
+                <button id="btn-confirmar-plan" onclick="app.confirmarPlan()" class="w-2/3 bg-green-600 text-white py-3 rounded font-bold hover:bg-green-700">Confirmar y Programar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL MANUAL MERCADO -->
     <div id="modal-item-manual" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div class="bg-white w-full max-w-md p-5 rounded-xl">
-            <h2 class="font-bold mb-3">Agregar al Mercado</h2>
+            <h2 class="font-bold mb-3 text-lg">Agregar al Mercado</h2>
+            <input type="date" id="man-fecha" class="w-full border p-2 mb-2 rounded font-bold text-gray-700">
             <div class="flex gap-2 mb-2">
                 <input type="text" id="man-art" placeholder="Artículo" class="w-1/2 border p-2 rounded" list="datalist-dicc">
                 <input type="number" id="man-cant" placeholder="Cant." class="w-1/4 border p-2 rounded" step="0.1">
@@ -159,8 +182,8 @@
             </div>
             <input type="number" id="man-precio" placeholder="Precio S/" class="w-full border p-2 mb-4 rounded font-bold">
             <div class="flex gap-2">
-                <button onclick="ui.toggleModal('modal-item-manual')" class="w-1/2 bg-gray-300 py-2 rounded font-bold">Cancelar</button>
-                <button id="btn-save-manual" onclick="app.guardarManual()" class="w-1/2 bg-green-600 text-white py-2 rounded font-bold">Agregar</button>
+                <button onclick="ui.toggleModal('modal-item-manual')" class="w-1/2 bg-gray-300 py-2 rounded font-bold hover:bg-gray-400">Cancelar</button>
+                <button id="btn-save-manual" onclick="app.guardarManual()" class="w-1/2 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700">Agregar</button>
             </div>
         </div>
     </div>
