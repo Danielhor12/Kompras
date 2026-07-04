@@ -9,6 +9,10 @@ let state = {
     vistaAgrupada: false 
 };
 
+// Íconos para los tipos de comida
+const iconosComida = { Desayuno: '☕', Almuerzo: '🍲', Cena: '🌙', Snack: '🍫', Merienda: '🥪' };
+const ordenComida = ['Desayuno', 'Almuerzo', 'Cena', 'Snack', 'Merienda'];
+
 const auth = {
     guardarToken: () => {
         const token = document.getElementById('token-input').value;
@@ -55,7 +59,6 @@ async function syncData() {
     let activa = state.semanas.find(s => s.Estado === 'Activa');
     state.semanaActual = activa ? activa.Semana_ID : null;
     
-    // LIMPIEZA TOTAL DE VISTA PAGOS AL SINCRONIZAR
     const resPagos = document.getElementById('resultados-pagos');
     if(resPagos) resPagos.classList.add('hidden');
     
@@ -72,7 +75,6 @@ async function syncData() {
             document.getElementById('plan-fecha').min = fIn;
             document.getElementById('plan-fecha').max = fFin;
         } else {
-            // Semana nueva o vacía
             document.getElementById('filtro-inicio').value = '';
             document.getElementById('filtro-fin').value = '';
             document.getElementById('filtro-editable').classList.remove('hidden');
@@ -92,6 +94,7 @@ async function syncData() {
     }
 
     renderAll();
+    app.filtrarPlatosPorTipo(); // Inicializa el desplegable de plan
 }
 
 const ui = {
@@ -125,34 +128,55 @@ function formatearFechaAmigable(fechaStr) {
 }
 
 // ================= RENDERIZADO =================
+
+// NUEVO: Recetario agrupado por Tipo
 function renderRecetario() {
     const list = document.getElementById('lista-recetario');
-    list.innerHTML = state.recetario.map(r => {
-        const ings = JSON.parse(r.Ingredientes_JSON || '[]');
-        return `
-        <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
-            <div class="flex justify-between items-center mb-1">
-                <h4 class="font-bold text-gray-800 text-lg flex-1">${r.Nombre}</h4>
-                <div class="flex gap-1">
-                    <button onclick="document.getElementById('det-${r.ID_Plato}').classList.toggle('hidden')" class="text-gray-600 text-xs font-bold bg-gray-100 px-2 py-1 rounded shadow-sm hover:bg-gray-200">Detalle</button>
-                    <button onclick="app.abrirEditarReceta('${r.ID_Plato}')" class="text-blue-500 text-xs font-bold bg-blue-50 px-2 py-1 rounded shadow-sm hover:bg-blue-100">✏️</button>
-                    <button onclick="app.eliminarReceta('${r.ID_Plato}')" class="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded shadow-sm hover:bg-red-100">X</button>
-                </div>
-            </div>
+    
+    // Agrupar recetas por Tipo (o Almuerzo por defecto si son antiguas)
+    const agrupado = state.recetario.reduce((acc, r) => {
+        let t = r.Tipo || 'Almuerzo';
+        acc[t] = acc[t] || [];
+        acc[t].push(r);
+        return acc;
+    }, {});
+
+    let html = '';
+    ordenComida.forEach(tipo => {
+        if(agrupado[tipo] && agrupado[tipo].length > 0) {
+            html += `<div class="mb-5"><h3 class="font-black text-gray-700 border-b-2 border-blue-200 pb-1 mb-2 uppercase tracking-wider text-xs">${iconosComida[tipo]} ${tipo}S</h3><div class="space-y-2">`;
             
-            <div id="det-${r.ID_Plato}" class="hidden text-xs bg-gray-50 p-2 rounded text-gray-600 divide-y divide-gray-200 mt-2 border border-gray-100">
-                ${ings.map(i => `
-                <div class="py-1 flex flex-col justify-center">
+            agrupado[tipo].forEach(r => {
+                const ings = JSON.parse(r.Ingredientes_JSON || '[]');
+                html += `
+                <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
                     <div class="flex justify-between items-center">
-                        <span><span class="font-bold text-blue-600">${i.cantidad||1} ${i.unidad}</span> ${i.articulo}</span> 
-                        <span class="text-gray-400 text-[9px] font-bold uppercase">Para: ${i.para} | Pago: ${i.quien_pago}</span>
+                        <h4 class="font-bold text-gray-800 text-sm flex-1 truncate pr-2">${r.Nombre}</h4>
+                        <div class="flex gap-1 shrink-0">
+                            <button onclick="document.getElementById('det-${r.ID_Plato}').classList.toggle('hidden')" class="text-gray-600 text-xs font-bold bg-gray-100 px-2 py-1 rounded shadow-sm hover:bg-gray-200">Ver</button>
+                            <button onclick="app.abrirEditarReceta('${r.ID_Plato}')" class="text-blue-500 text-xs font-bold bg-blue-50 px-2 py-1 rounded shadow-sm hover:bg-blue-100">✏️</button>
+                            <button onclick="app.eliminarReceta('${r.ID_Plato}')" class="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded shadow-sm hover:bg-red-100">X</button>
+                        </div>
                     </div>
-                    ${i.comentario ? `<p class="text-[9px] italic text-gray-500 mt-0.5">"${i.comentario}"</p>` : ''}
-                </div>`).join('')}
-            </div>
-        </div>`;
-    }).join('');
-    document.getElementById('plan-plato').innerHTML = state.recetario.map(r => `<option value="${r.ID_Plato}">${r.Nombre}</option>`).join('');
+                    
+                    <div id="det-${r.ID_Plato}" class="hidden text-[11px] bg-gray-50 p-2 rounded text-gray-600 divide-y divide-gray-200 mt-2 border border-gray-100">
+                        ${ings.map(i => `
+                        <div class="py-1 flex flex-col justify-center">
+                            <div class="flex justify-between items-center">
+                                <span><span class="font-bold text-blue-600">${i.cantidad||1} ${i.unidad}</span> ${i.articulo}</span> 
+                                <span class="text-gray-400 text-[9px] font-bold uppercase">Para: ${i.para} | Pago: ${i.quien_pago}</span>
+                            </div>
+                            ${i.comentario ? `<p class="text-[9px] italic text-gray-500 mt-0.5">"${i.comentario}"</p>` : ''}
+                        </div>`).join('')}
+                    </div>
+                </div>`;
+            });
+            html += `</div></div>`;
+        }
+    });
+
+    if(state.recetario.length === 0) html = '<p class="text-center text-gray-400 font-bold">No hay recetas guardadas.</p>';
+    list.innerHTML = html;
 }
 
 function renderPlan() {
@@ -172,28 +196,43 @@ function renderPlan() {
 
     let html = '';
     if(Object.keys(porDia).length === 0) {
-        html = '<p class="text-center text-gray-400 mt-6 font-bold">No hay platos programados en estas fechas.</p>';
+        html = '<p class="text-center text-gray-400 mt-6 font-bold">No hay comidas programadas en estas fechas.</p>';
     } else {
         for(const [fecha, platos] of Object.entries(porDia)) {
             const nombreDia = formatearFechaAmigable(fecha);
             html += `
             <div class="mb-4 border border-blue-200 rounded-xl overflow-hidden shadow-sm">
                 <div class="bg-blue-600 text-white font-bold p-2 text-center capitalize text-sm tracking-wide">${nombreDia}</div>
-                <div class="bg-white p-2 space-y-2">
-                    ${platos.map(p => `
+                <div class="bg-white p-2 space-y-2">`;
+            
+            // Agrupar platos del día por tipo
+            const porTipo = platos.reduce((acc, p) => {
+                let t = p.Tipo || 'Almuerzo';
+                acc[t] = acc[t] || [];
+                acc[t].push(p);
+                return acc;
+            }, {});
+
+            ordenComida.forEach(tipo => {
+                if(porTipo[tipo]) {
+                    html += `<div class="text-[10px] font-black text-blue-800 uppercase tracking-widest mt-3 mb-1 px-1 flex items-center gap-1 border-b border-blue-100 pb-1">${iconosComida[tipo]} ${tipo}</div>`;
+                    
+                    porTipo[tipo].forEach(p => {
+                        html += `
                         <div class="p-3 bg-blue-50 text-blue-900 rounded-lg text-sm border border-blue-100 flex flex-col gap-2">
                             <div class="flex justify-between items-start">
-                                <span class="font-bold pr-2 cursor-pointer hover:underline" onclick="app.verIngredientesPlan('${p.Plan_ID}', '${p.Nombre_Plato}')">🍽️ ${p.Nombre_Plato} <span class="text-[10px] font-normal text-blue-500">(Ver 🛒)</span></span>
+                                <span class="font-bold pr-2 cursor-pointer hover:underline flex-1 truncate" onclick="app.verIngredientesPlan('${p.Plan_ID}', '${p.Nombre_Plato}')">${p.Nombre_Plato} <span class="text-[10px] font-normal text-blue-500">(Ver 🛒)</span></span>
                                 <button onclick="app.eliminarPlan('${p.Plan_ID}')" class="text-red-500 font-bold bg-red-100 px-3 py-1 rounded text-xs hover:bg-red-200 shadow-sm transition">X</button>
                             </div>
                             <div class="flex items-center gap-2 mt-1">
                                 <span class="text-[10px] text-gray-500 font-bold uppercase">Mover a:</span>
                                 <input type="date" value="${p.Fecha.substring(0,10)}" onchange="app.cambiarFechaPlan('${p.Plan_ID}', this.value)" class="border border-blue-200 p-1 text-[10px] rounded bg-white font-bold text-blue-700 outline-none focus:ring-1 focus:ring-blue-400">
                             </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>`;
+                        </div>`;
+                    });
+                }
+            });
+            html += `</div></div>`;
         }
     }
     document.getElementById('lista-plan').innerHTML = html;
@@ -310,7 +349,6 @@ function renderMercado() {
             const txtUnidad = a.Origen === 'Agrupación' ? '(Total)' : `(${a.Cantidad || 1} ${a.Unidad})`; 
             const commentHtml = a.Comentario ? `<p class="text-[9px] italic text-blue-500 font-bold mt-0.5">"${a.Comentario}"</p>` : '';
             
-            // REDISEÑO: Colocando el nombre y el checkbox en su propia línea, arriba de los selects.
             html += `
             <div id="row-${a.ID_Item}" class="flex flex-col gap-1 p-2 border-b border-gray-100 last:border-0 bg-gray-50 rounded">
                 <div class="flex gap-2 items-start">
@@ -342,7 +380,6 @@ function renderMercado() {
 
 // ================= CONTROLADOR PRINCIPAL =================
 const app = {
-    // BOTÓN DE SINCRONIZACIÓN CON TOAST Y ANIMACIÓN
     ejecutarSincronizacion: async (btnElement) => {
         const txtOriginal = btnElement.innerHTML;
         btnElement.innerHTML = '🔄 Sincronizando...';
@@ -353,7 +390,6 @@ const app = {
         btnElement.innerHTML = txtOriginal;
         btnElement.disabled = false;
 
-        // Mostrar Toast
         const toast = document.getElementById('toast-sincronizado');
         const hora = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         toast.innerText = `✅ Sincronizado: ${hora}`;
@@ -398,6 +434,20 @@ const app = {
     aplicarFiltroGlobal: () => {
         renderPlan(); renderMercado();
         if(!document.getElementById('view-pagos').classList.contains('hidden')) app.calcularPagos();
+    },
+
+    // NUEVA FUNCIÓN: Filtrar platos en el desplegable
+    filtrarPlatosPorTipo: () => {
+        const tipoSeleccionado = document.getElementById('plan-tipo-comida').value;
+        const selectPlato = document.getElementById('plan-plato');
+        
+        const platosFiltrados = state.recetario.filter(r => (r.Tipo || 'Almuerzo') === tipoSeleccionado);
+        
+        if (platosFiltrados.length === 0) {
+            selectPlato.innerHTML = '<option value="">No hay platos en esta categoría</option>';
+        } else {
+            selectPlato.innerHTML = platosFiltrados.map(r => `<option value="${r.ID_Plato}">${r.Nombre}</option>`).join('');
+        }
     },
 
     addIngredienteTemp: (contexto) => {
@@ -446,34 +496,40 @@ const app = {
     },
 
     abrirNuevaReceta: () => {
-        state.editandoPlatoID = null; document.getElementById('titulo-modal-receta').innerText = "Nueva Receta"; document.getElementById('rec-nombre').value = '';
+        state.editandoPlatoID = null; document.getElementById('titulo-modal-receta').innerText = "Nueva Receta"; 
+        document.getElementById('rec-nombre').value = '';
+        document.getElementById('rec-tipo').value = 'Almuerzo';
         state.tempIngredientes = []; app.renderTempIngredientes('rec'); ui.toggleModal('modal-receta');
     },
     abrirEditarReceta: (id) => {
         state.editandoPlatoID = id; const receta = state.recetario.find(r => r.ID_Plato === id);
-        document.getElementById('titulo-modal-receta').innerText = "Editar Receta"; document.getElementById('rec-nombre').value = receta.Nombre;
+        document.getElementById('titulo-modal-receta').innerText = "Editar Receta"; 
+        document.getElementById('rec-nombre').value = receta.Nombre;
+        document.getElementById('rec-tipo').value = receta.Tipo || 'Almuerzo';
         state.tempIngredientes = JSON.parse(receta.Ingredientes_JSON || '[]'); app.renderTempIngredientes('rec'); ui.toggleModal('modal-receta');
     },
     eliminarReceta: (id) => {
         if(!confirm("¿Seguro que deseas eliminar este plato definitivamente?")) return;
-        state.recetario = state.recetario.filter(r => r.ID_Plato !== id); renderRecetario(); api({ action: 'delete_receta', id: id }, true); 
+        state.recetario = state.recetario.filter(r => r.ID_Plato !== id); renderRecetario(); app.filtrarPlatosPorTipo(); api({ action: 'delete_receta', id: id }, true); 
     },
     guardarReceta: () => {
         const nombre = document.getElementById('rec-nombre').value;
+        const tipo = document.getElementById('rec-tipo').value;
         if(!nombre) return alert("Falta el nombre de la receta");
         const recetaID = state.editandoPlatoID || "PLT-" + Date.now();
-        const nuevaReceta = { ID_Plato: recetaID, Nombre: nombre, Ingredientes_JSON: JSON.stringify(state.tempIngredientes) };
+        const nuevaReceta = { ID_Plato: recetaID, Nombre: nombre, Ingredientes_JSON: JSON.stringify(state.tempIngredientes), Tipo: tipo };
         if(state.editandoPlatoID) {
             const idx = state.recetario.findIndex(r => r.ID_Plato === state.editandoPlatoID);
             if(idx !== -1) state.recetario[idx] = nuevaReceta;
         } else { state.recetario.push(nuevaReceta); }
-        renderRecetario(); ui.toggleModal('modal-receta');
-        api({ action: state.editandoPlatoID ? 'update_receta' : 'save_receta', data: { id: recetaID, nombre: nombre, ingredientes: nuevaReceta.Ingredientes_JSON } }, true);
+        renderRecetario(); app.filtrarPlatosPorTipo(); ui.toggleModal('modal-receta');
+        api({ action: state.editandoPlatoID ? 'update_receta' : 'save_receta', data: { id: recetaID, nombre: nombre, ingredientes: nuevaReceta.Ingredientes_JSON, tipo: tipo } }, true);
     },
 
     prepararPlan: () => {
         const fecha = document.getElementById('plan-fecha').value; 
         const id_plato = document.getElementById('plan-plato').value;
+        const tipoElegido = document.getElementById('plan-tipo-comida').value;
         const plato = state.recetario.find(p => p.ID_Plato === id_plato);
         
         if(!fecha) return alert("Selecciona una fecha.");
@@ -484,7 +540,7 @@ const app = {
         }
         if(!plato) return alert("Selecciona un plato.");
         
-        state.tempPlanMeta = { fecha, id_plato: plato.ID_Plato, nombre_plato: plato.Nombre };
+        state.tempPlanMeta = { fecha, id_plato: plato.ID_Plato, nombre_plato: plato.Nombre, tipo: tipoElegido };
         state.tempIngredientes = JSON.parse(plato.Ingredientes_JSON || '[]');
         document.getElementById('plan-modal-subtitulo').innerText = `${plato.Nombre} - ${formatearFechaAmigable(fecha)}`;
         app.renderTempIngredientes('plan'); ui.toggleModal('modal-plan-ingredientes');
@@ -493,12 +549,12 @@ const app = {
         const btn = document.getElementById('btn-confirmar-plan'); btn.innerText = '¡Programado!'; setTimeout(() => { btn.innerText = 'Confirmar y Programar'; }, 1000);
         const planID = "PLN-" + Date.now();
         const meta = state.tempPlanMeta;
-        state.plan.push({ Plan_ID: planID, Semana_ID: state.semanaActual, Fecha: meta.fecha, ID_Plato: meta.id_plato, Nombre_Plato: meta.nombre_plato });
+        state.plan.push({ Plan_ID: planID, Semana_ID: state.semanaActual, Fecha: meta.fecha, ID_Plato: meta.id_plato, Nombre_Plato: meta.nombre_plato, Tipo: meta.tipo });
         state.tempIngredientes.forEach(ing => {
             state.mercado.push({ ID_Item: "ITM-" + Date.now() + Math.floor(Math.random() * 1000), Semana_ID: state.semanaActual, Plan_ID: planID, Articulo: ing.articulo, Categoria: ing.categoria, Unidad: ing.unidad, Cantidad: ing.cantidad || 1, Para: ing.para || "Ambos", Quien_Pago: ing.quien_pago || "Pendiente", Precio: 0, Estado: "Pendiente", Origen: "Receta", Fecha: meta.fecha, Comentario: ing.comentario || "" });
         });
         renderPlan(); renderMercado(); document.getElementById('plan-fecha').value = ''; ui.toggleModal('modal-plan-ingredientes');
-        api({ action: 'save_plan', plan_id: planID, semana_id: state.semanaActual, fecha: meta.fecha, id_plato: meta.id_plato, nombre_plato: meta.nombre_plato, ingredientes: JSON.stringify(state.tempIngredientes) }, true);
+        api({ action: 'save_plan', plan_id: planID, semana_id: state.semanaActual, fecha: meta.fecha, id_plato: meta.id_plato, nombre_plato: meta.nombre_plato, tipo: meta.tipo, ingredientes: JSON.stringify(state.tempIngredientes) }, true);
     },
     verIngredientesPlan: (planID, nombrePlato) => {
         const items = state.mercado.filter(m => m.Plan_ID === planID);
@@ -535,7 +591,6 @@ const app = {
         document.getElementById('filtro-fin').value = '';
         document.getElementById('plan-fecha').value = '';
         app.modificarSemana();
-        
         if(document.getElementById('resultados-pagos')) document.getElementById('resultados-pagos').classList.add('hidden');
         
         document.getElementById('sync-spinner').classList.remove('hidden');
