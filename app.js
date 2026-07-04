@@ -1,10 +1,10 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwDYsBClWoDqzAfzO1evA0L-xTW_g5k3eiZYJITWdbElptG0W5Rc-vy_uxwUgRvkNw/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbxsayfU-mKqqV7zWPD0_5nEhqxNImvBMVvrj1wHzwmtLk2az127d3-iQ1EW9G1EBwg/exec"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
     semanaActual: null, tempIngredientes: [], editandoPlatoID: null, tempPlanMeta: null,
-    filtroComprador: 'Todos', // "Todos", "Carlos", "Daniel"
-    encargadosCategorias: {} // Guarda quién compra cada categoría localmente
+    filtroComprador: 'Todos', 
+    encargadosCategorias: {} 
 };
 
 const auth = {
@@ -48,8 +48,10 @@ async function syncData() {
     const data = await api({ action: 'sync' }, true);
     if(!data) return;
     
-    // Al sincronizar, reiniciamos el filtro de comprador
-    state = {...state, ...data, filtroComprador: 'Todos', encargadosCategorias: {}};
+    // CORRECCIÓN: Al sincronizar, reiniciamos el filtro visual general a 'Todos', 
+    // pero CONSERVAMOS quién está a cargo de cada categoría en la memoria local.
+    const encargadosGuardados = state.encargadosCategorias || {};
+    state = {...state, ...data, filtroComprador: 'Todos', encargadosCategorias: encargadosGuardados};
     
     let activa = state.semanas.find(s => s.Estado === 'Activa');
     state.semanaActual = activa ? activa.Semana_ID : null;
@@ -174,7 +176,6 @@ function renderPlan() {
 }
 
 function renderMercado() {
-    // Actualizar botones de filtro
     ['Todos', 'Carlos', 'Daniel'].forEach(v => {
         const btn = document.getElementById(`btn-comp-${v}`);
         if(btn) {
@@ -214,12 +215,8 @@ function renderMercado() {
     if(items.length === 0) html += '<p class="text-center text-gray-400 mt-6 font-bold">No hay compras para estas fechas.</p>';
     
     for (const [cat, arts] of Object.entries(agrupado)) {
-        
-        // Verificamos si esta categoría debe mostrarse según el filtro de comprador
         let encargado = state.encargadosCategorias[cat] || 'Todos';
-        if(state.filtroComprador !== 'Todos' && encargado !== state.filtroComprador) {
-            continue; // Saltamos esta categoría porque no le toca a este comprador
-        }
+        if(state.filtroComprador !== 'Todos' && encargado !== state.filtroComprador) continue; 
 
         const itemsPendientes = arts.filter(a => a.Estado !== 'Comprado_Bloqueado' && a.Origen !== 'Agrupación');
         const botonCerrar = itemsPendientes.length > 0 
@@ -279,15 +276,8 @@ function renderMercado() {
 
 // ================= CONTROLADOR PRINCIPAL =================
 const app = {
-    // FILTROS COMPRADOR CATEGORÍA
-    setFiltroComprador: (val) => {
-        state.filtroComprador = val;
-        renderMercado();
-    },
-    setEncargadoCat: (cat, val) => {
-        state.encargadosCategorias[cat] = val;
-        renderMercado();
-    },
+    setFiltroComprador: (val) => { state.filtroComprador = val; renderMercado(); },
+    setEncargadoCat: (cat, val) => { state.encargadosCategorias[cat] = val; renderMercado(); },
 
     confirmarSemana: () => {
         const fIn = document.getElementById('filtro-inicio').value;
@@ -433,8 +423,6 @@ const app = {
         state.plan = state.plan.filter(p => p.Plan_ID !== planID); state.mercado = state.mercado.filter(m => m.Plan_ID !== planID);
         renderPlan(); renderMercado(); api({ action: 'delete_plan', plan_id: planID }, true);
     },
-    
-    // Eliminación Total de Semana limpia y vuelve a estado inicial
     eliminarSemanaActual: async () => {
         if(!confirm("⚠️ PELIGRO: ¿Estás seguro que deseas ELIMINAR TODA LA SEMANA ACTUAL?\n\nEsto borrará todo el plan programado y todo el mercado de la semana activa. Esta acción no se puede deshacer.")) return;
         if(!confirm("¿ÚLTIMA ADVERTENCIA: Confirmas eliminar la semana completa?")) return;
@@ -484,9 +472,8 @@ const app = {
         api({ action: 'update_item', data: { id, para, quien_pago: quien, precio: item.Precio, estado } }, true); 
     },
     
-    // AGRUPAR MERCADO
     agruparMercado: async () => {
-        if(!confirm("📦 ¿Agrupar productos idénticos?\n\nEsto buscará artículos que tengan el mismo Nombre, Categoría y Unidad y sumará sus cantidades en un solo renglón para que compres más rápido.")) return;
+        if(!confirm("📦 ¿Agrupar productos idénticos?\n\nEsto unirá artículos con el mismo Nombre, Categoría, Unidad, Para y Pago para no alterar las cuentas.")) return;
         document.getElementById('sync-spinner').classList.remove('hidden');
         await api({ action: 'agrupar_mercado', semana_id: state.semanaActual }, true);
         await syncData();
