@@ -1,11 +1,12 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwBwB3KnOLZ_8g_eH94AnrEE10yVQA7bRZOLTtEpTc7EtLuhL-XvTqfKrSCnx-zs1A/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbxWMSAvRZ9VzgisRcSVqivApyB8bE8JzImRiWtcOkdD-UZLwZoOfVAafvwzx3ZRSw/exec"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
     semanaActual: null, tempIngredientes: [], editandoPlatoID: null, tempPlanMeta: null,
     filtroComprador: 'Todos', 
     encargadosCategorias: {},
-    vistaAgrupada: false // Controla el botón Unir/Desunir
+    compradoresConfirmados: false, // Controla si se puede editar o no quién compra
+    vistaAgrupada: false 
 };
 
 const auth = {
@@ -20,7 +21,6 @@ const auth = {
 };
 
 window.onload = init;
-// ELIMINADO EL AUTO-SYNC AL VOLVER A LA APP
 
 async function init() {
     if (auth.getToken()) {
@@ -49,28 +49,36 @@ async function syncData() {
     const data = await api({ action: 'sync' }, true);
     if(!data) return;
     
-    // Mantiene en memoria los filtros asignados para no perderlos
-    const prevFiltroComprador = state.filtroComprador || 'Todos';
-    const prevEncargados = state.encargadosCategorias || {};
-    
-    state = {...state, ...data, filtroComprador: prevFiltroComprador, encargadosCategorias: prevEncargados};
+    // Conservar el filtro visual en 'Todos' para que al recargar se vea completo
+    state = {...state, ...data, filtroComprador: 'Todos'};
     
     let activa = state.semanas.find(s => s.Estado === 'Activa');
     state.semanaActual = activa ? activa.Semana_ID : null;
     
-    if(activa && activa.Fecha_Inicio && activa.Fecha_Fin) {
-        const fIn = typeof activa.Fecha_Inicio === 'string' ? activa.Fecha_Inicio.substring(0,10) : new Date(activa.Fecha_Inicio).toISOString().substring(0,10);
-        const fFin = typeof activa.Fecha_Fin === 'string' ? activa.Fecha_Fin.substring(0,10) : new Date(activa.Fecha_Fin).toISOString().substring(0,10);
-        document.getElementById('filtro-inicio').value = fIn;
-        document.getElementById('filtro-fin').value = fFin;
-        
-        document.getElementById('filtro-editable').classList.add('hidden');
-        document.getElementById('filtro-bloqueado').classList.remove('hidden');
-        document.getElementById('txt-rango-fijo').innerText = `${formatearFechaAmigable(fIn)} al ${formatearFechaAmigable(fFin)}`;
-        
-        // Asignar límites al calendario de programación
-        document.getElementById('plan-fecha').min = fIn;
-        document.getElementById('plan-fecha').max = fFin;
+    if (activa) {
+        // Cargar las fechas fijadas
+        if(activa.Fecha_Inicio && activa.Fecha_Fin) {
+            const fIn = typeof activa.Fecha_Inicio === 'string' ? activa.Fecha_Inicio.substring(0,10) : new Date(activa.Fecha_Inicio).toISOString().substring(0,10);
+            const fFin = typeof activa.Fecha_Fin === 'string' ? activa.Fecha_Fin.substring(0,10) : new Date(activa.Fecha_Fin).toISOString().substring(0,10);
+            document.getElementById('filtro-inicio').value = fIn;
+            document.getElementById('filtro-fin').value = fFin;
+            
+            document.getElementById('filtro-editable').classList.add('hidden');
+            document.getElementById('filtro-bloqueado').classList.remove('hidden');
+            document.getElementById('txt-rango-fijo').innerText = `${formatearFechaAmigable(fIn)} al ${formatearFechaAmigable(fFin)}`;
+            document.getElementById('plan-fecha').min = fIn;
+            document.getElementById('plan-fecha').max = fFin;
+        }
+
+        // Cargar la asignación de compradores desde la base de datos
+        try {
+            const encData = activa.Encargados ? JSON.parse(activa.Encargados) : { confirmado: false, asignaciones: {} };
+            state.compradoresConfirmados = encData.confirmado || false;
+            state.encargadosCategorias = encData.asignaciones || {};
+        } catch(e) {
+            state.compradoresConfirmados = false;
+            state.encargadosCategorias = {};
+        }
     }
 
     renderAll();
@@ -182,18 +190,13 @@ function renderPlan() {
 }
 
 function renderMercado() {
-    // Render de botones de filtro y unión
     ['Todos', 'Carlos', 'Daniel'].forEach(v => {
         const btn = document.getElementById(`btn-comp-${v}`);
         if(btn) {
             if(state.filtroComprador === v) {
-                btn.classList.replace('bg-gray-100', 'bg-gray-800');
-                btn.classList.replace('text-gray-600', 'text-white');
-                btn.classList.replace('border-transparent', 'border-gray-800');
+                btn.classList.replace('bg-gray-100', 'bg-gray-800'); btn.classList.replace('text-gray-600', 'text-white'); btn.classList.replace('border-transparent', 'border-gray-800');
             } else {
-                btn.classList.replace('bg-gray-800', 'bg-gray-100');
-                btn.classList.replace('text-white', 'text-gray-600');
-                btn.classList.replace('border-gray-800', 'border-transparent');
+                btn.classList.replace('bg-gray-800', 'bg-gray-100'); btn.classList.replace('text-white', 'text-gray-600'); btn.classList.replace('border-gray-800', 'border-transparent');
             }
         }
     });
@@ -201,11 +204,9 @@ function renderMercado() {
     const btnAgrupar = document.getElementById('btn-agrupar-mercado');
     if (btnAgrupar) {
         if(state.vistaAgrupada) {
-            btnAgrupar.innerHTML = '📦 Desunir';
-            btnAgrupar.className = 'w-1/4 bg-orange-100 text-orange-700 border border-orange-200 font-bold py-2 rounded-lg shadow-sm';
+            btnAgrupar.innerHTML = '📦 Desunir'; btnAgrupar.className = 'w-1/4 bg-orange-100 text-orange-700 border border-orange-200 font-bold py-2 rounded-lg shadow-sm';
         } else {
-            btnAgrupar.innerHTML = '📦 Unir';
-            btnAgrupar.className = 'w-1/4 bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold py-2 rounded-lg shadow-sm';
+            btnAgrupar.innerHTML = '📦 Unir'; btnAgrupar.className = 'w-1/4 bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold py-2 rounded-lg shadow-sm';
         }
     }
 
@@ -221,20 +222,13 @@ function renderMercado() {
         });
     }
 
-    // LÓGICA DE AGRUPACIÓN VISUAL SEGURA
     if (state.vistaAgrupada) {
         const agrupadosExactos = {};
         items.forEach(i => {
-            if (i.Origen === 'Agrupación' || i.Estado === 'Comprado_Bloqueado') {
-                agrupadosExactos[i.ID_Item] = i; // No mezclamos los totales cerrados
-                return;
-            }
+            if (i.Origen === 'Agrupación' || i.Estado === 'Comprado_Bloqueado') { agrupadosExactos[i.ID_Item] = i; return; }
             const key = `${i.Articulo.toLowerCase().trim()}|${i.Categoria}|${i.Unidad}|${i.Para}|${i.Quien_Pago}`;
-            if (!agrupadosExactos[key]) {
-                agrupadosExactos[key] = { ...i, Cantidad: parseFloat(i.Cantidad) || 1 };
-            } else {
-                agrupadosExactos[key].Cantidad += (parseFloat(i.Cantidad) || 1);
-            }
+            if (!agrupadosExactos[key]) { agrupadosExactos[key] = { ...i, Cantidad: parseFloat(i.Cantidad) || 1 }; } 
+            else { agrupadosExactos[key].Cantidad += (parseFloat(i.Cantidad) || 1); }
         });
         items = Object.values(agrupadosExactos);
     }
@@ -246,8 +240,20 @@ function renderMercado() {
     }, {});
 
     let infoFiltro = (fInicio || fFin) ? `🗓️ Mostrando del: ${fInicio||'∞'} al ${fFin||'∞'}` : `🗓️ Toda la semana`;
-    let html = '';
     
+    // BANNER DE ASIGNACIÓN (NUEVO)
+    let html = `
+        <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-200 shadow-sm mb-3 flex flex-col gap-2">
+            <div class="flex justify-between items-center">
+                <span class="text-xs font-bold text-indigo-800">🛍️ Asignación de Compras</span>
+                <button onclick="app.toggleConfirmarAsignaciones()" class="text-xs font-bold px-3 py-1 rounded-lg ${state.compradoresConfirmados ? 'bg-white text-indigo-600 border border-indigo-200' : 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700'}">
+                    ${state.compradoresConfirmados ? '✏️ Editar' : '✅ Confirmar'}
+                </button>
+            </div>
+            <p class="text-[9px] text-indigo-600">${state.compradoresConfirmados ? 'Bloqueado. Las asignaciones de categorías se han enviado al otro celular.' : 'Asigna quién compra cada categoría abajo y presiona Confirmar.'}</p>
+        </div>
+    `;
+
     if (state.vistaAgrupada) {
         html += `<div class="bg-orange-100 text-orange-800 text-xs font-bold p-3 text-center mb-3 rounded-lg border border-orange-200 shadow-sm">⚠️ Vista Agrupada Activada.<br>Desune para poder ingresar los precios individualmente.</div>`;
     }
@@ -265,12 +271,16 @@ function renderMercado() {
             ? `<button onclick="app.cerrarCategoria('${cat}')" class="bg-red-500 px-3 py-1 rounded text-xs font-bold text-white hover:bg-red-600 shadow-sm">Cerrar</button>`
             : `<span class="bg-gray-300 text-gray-600 px-3 py-1 rounded text-xs font-bold">Cerrado</span>`;
 
+        // Si está confirmado, deshabilitar selector y cambiar estilo
+        const disabledCat = state.compradoresConfirmados ? 'disabled' : '';
+        const bgCatSelect = state.compradoresConfirmados ? 'bg-gray-200 text-gray-500' : 'bg-white text-black';
+
         html += `
         <div class="bg-white rounded-xl shadow-sm mb-4 overflow-hidden border border-gray-200">
             <div id="cat-head-${cat}" class="bg-gray-800 text-white p-2 flex flex-col gap-2">
                 <div class="flex items-center justify-between">
                     <h4 class="font-bold uppercase text-xs">${cat}</h4>
-                    <select onchange="app.setEncargadoCat('${cat}', this.value)" class="text-black text-[10px] p-1 rounded font-bold outline-none border border-gray-300">
+                    <select onchange="app.setEncargadoCat('${cat}', this.value)" class="text-[10px] p-1 rounded font-bold outline-none border border-gray-300 ${bgCatSelect}" ${disabledCat}>
                         <option value="Todos" ${encargado === 'Todos' ? 'selected' : ''}>🛒 Va a comprar: Ambos</option>
                         <option value="Carlos" ${encargado === 'Carlos' ? 'selected' : ''}>🛒 Va a comprar: Carlos</option>
                         <option value="Daniel" ${encargado === 'Daniel' ? 'selected' : ''}>🛒 Va a comprar: Daniel</option>
@@ -322,27 +332,30 @@ const app = {
     setFiltroComprador: (val) => { state.filtroComprador = val; renderMercado(); },
     setEncargadoCat: (cat, val) => { state.encargadosCategorias[cat] = val; renderMercado(); },
     
-    // TOGGLE AGRUPAR
-    toggleAgruparMercado: () => {
-        state.vistaAgrupada = !state.vistaAgrupada;
+    // GUARDAR Y CONFIRMAR ASIGNACIONES
+    toggleConfirmarAsignaciones: () => {
+        state.compradoresConfirmados = !state.compradoresConfirmados;
+        const encData = {
+            confirmado: state.compradoresConfirmados,
+            asignaciones: state.encargadosCategorias
+        };
+        api({ action: 'update_encargados', semana_id: state.semanaActual, encargados_json: JSON.stringify(encData) }, true);
         renderMercado();
     },
+
+    toggleAgruparMercado: () => { state.vistaAgrupada = !state.vistaAgrupada; renderMercado(); },
 
     confirmarSemana: () => {
         const fIn = document.getElementById('filtro-inicio').value;
         const fFin = document.getElementById('filtro-fin').value;
         if(!fIn || !fFin) return alert("Por favor selecciona la Fecha de Inicio y la Fecha de Fin.");
-
         document.getElementById('filtro-editable').classList.add('hidden');
         document.getElementById('filtro-bloqueado').classList.remove('hidden');
         document.getElementById('txt-rango-fijo').innerText = `${formatearFechaAmigable(fIn)} al ${formatearFechaAmigable(fFin)}`;
-
-        // Limita el calendario de programación al rango
         document.getElementById('plan-fecha').min = fIn;
         document.getElementById('plan-fecha').max = fFin;
 
-        app.aplicarFiltroGlobal();
-        ui.toggleModal('modal-exito');
+        app.aplicarFiltroGlobal(); ui.toggleModal('modal-exito');
         api({ action: 'update_semana_dates', semana_id: state.semanaActual, fInicio: fIn, fFin: fFin }, true);
     },
 
@@ -354,8 +367,7 @@ const app = {
     },
 
     aplicarFiltroGlobal: () => {
-        renderPlan();
-        renderMercado();
+        renderPlan(); renderMercado();
         if(!document.getElementById('view-pagos').classList.contains('hidden')) app.calcularPagos();
     },
 
@@ -436,14 +448,13 @@ const app = {
         const plato = state.recetario.find(p => p.ID_Plato === id_plato);
         
         if(!fecha) return alert("Selecciona una fecha.");
-        
         const fIn = document.getElementById('filtro-inicio').value;
         const fFin = document.getElementById('filtro-fin').value;
         if(fIn && fFin && (fecha < fIn || fecha > fFin)) {
             return alert(`Por favor, programa el plato dentro de la semana seleccionada:\nDel ${formatearFechaAmigable(fIn)} al ${formatearFechaAmigable(fFin)}.`);
         }
-
         if(!plato) return alert("Selecciona un plato.");
+        
         state.tempPlanMeta = { fecha, id_plato: plato.ID_Plato, nombre_plato: plato.Nombre };
         state.tempIngredientes = JSON.parse(plato.Ingredientes_JSON || '[]');
         document.getElementById('plan-modal-subtitulo').innerText = `${plato.Nombre} - ${formatearFechaAmigable(fecha)}`;
@@ -486,12 +497,10 @@ const app = {
         state.plan = state.plan.filter(p => p.Plan_ID !== planID); state.mercado = state.mercado.filter(m => m.Plan_ID !== planID);
         renderPlan(); renderMercado(); api({ action: 'delete_plan', plan_id: planID }, true);
     },
-    
     eliminarSemanaActual: async () => {
         if(!confirm("⚠️ PELIGRO: ¿Estás seguro que deseas ELIMINAR TODA LA SEMANA ACTUAL?\n\nEsto borrará todo el plan programado y todo el mercado de la semana activa. Esta acción no se puede deshacer.")) return;
         if(!confirm("¿ÚLTIMA ADVERTENCIA: Confirmas eliminar la semana completa?")) return;
         
-        // Limpiamos la vista inmediatamente
         document.getElementById('filtro-inicio').value = '';
         document.getElementById('filtro-fin').value = '';
         document.getElementById('plan-fecha').value = '';
@@ -589,7 +598,6 @@ const app = {
             });
         }
         
-        // ALERTA DE PREVENCIÓN: Bloquea el cálculo si hay cosas pendientes
         const pendientes = items.some(i => i.Estado === 'Pendiente' && i.Origen !== 'Agrupación');
         if (pendientes) {
             return alert("⚠️ Aún tienes artículos pendientes de compra.\n\nPor favor, ingresa sus precios individualmente o cierra la categoría completa en la vista Mercado antes de sacar las cuentas finales.");
