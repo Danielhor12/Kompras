@@ -9,7 +9,6 @@
 <body class="bg-gray-100 h-screen flex flex-col text-sm relative">
     <div id="sync-spinner" class="hidden fixed top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded-full text-xs shadow z-50">Cargando...</div>
 
-    <!-- TOAST DE SINCRONIZACIÓN (NUEVO) -->
     <div id="toast-sincronizado" class="hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-[11px] font-bold z-50 transition-opacity duration-300 whitespace-nowrap"></div>
 
     <div id="login-screen" class="absolute inset-0 bg-white flex flex-col justify-center items-center z-50">
@@ -28,14 +27,12 @@
 
         <main class="flex-1 overflow-y-auto p-4 pb-24">
             
-            <!-- VISTA RECETARIO -->
             <section id="view-recetario" class="hidden space-y-4">
                 <button onclick="app.ejecutarSincronizacion(this)" class="w-full bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm mb-2">🔄 Sincronizar Datos</button>
-                <button onclick="app.abrirNuevaReceta()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow mb-2">+ Nuevo Plato</button>
-                <div id="lista-recetario" class="space-y-3"></div>
+                <button onclick="app.abrirNuevaReceta()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow mb-4">+ Nuevo Plato</button>
+                <div id="lista-recetario" class="space-y-2"></div>
             </section>
 
-            <!-- VISTA PLAN -->
             <section id="view-plan" class="hidden space-y-4">
                 <button onclick="app.ejecutarSincronizacion(this)" class="w-full bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm mb-2">🔄 Sincronizar Datos</button>
                 
@@ -63,9 +60,18 @@
                 </div>
 
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <h3 class="font-bold mb-3 text-gray-800">Programar Almuerzo</h3>
-                    <input type="date" id="plan-fecha" class="border border-gray-300 p-2 w-full mb-2 rounded font-bold text-gray-700">
-                    <select id="plan-plato" class="border border-gray-300 p-2 w-full mb-3 rounded font-bold text-gray-700"></select>
+                    <h3 class="font-bold mb-3 text-gray-800">Programar Comidas</h3>
+                    <div class="flex gap-2 mb-2">
+                        <input type="date" id="plan-fecha" class="border border-gray-300 p-2 w-1/2 rounded font-bold text-gray-700 text-xs bg-white">
+                        <select id="plan-tipo-comida" onchange="app.filtrarPlatosPorTipo()" class="border border-gray-300 p-2 w-1/2 rounded font-bold text-gray-700 text-xs bg-white">
+                            <option value="Desayuno">Desayuno</option>
+                            <option value="Almuerzo" selected>Almuerzo</option>
+                            <option value="Cena">Cena</option>
+                            <option value="Snack">Snack</option>
+                            <option value="Merienda">Merienda</option>
+                        </select>
+                    </div>
+                    <select id="plan-plato" class="border border-gray-300 p-2 w-full mb-3 rounded font-bold text-gray-700 bg-white"></select>
                     <button id="btn-preparar-plan" onclick="app.prepararPlan()" class="w-full bg-green-600 text-white font-bold py-3 rounded shadow hover:bg-green-700">Revisar Ingredientes y Añadir</button>
                 </div>
                 
@@ -73,7 +79,6 @@
                 <button onclick="app.eliminarSemanaActual()" class="w-full bg-red-100 text-red-600 border border-red-200 font-bold py-3 rounded-xl shadow-sm mt-6 hover:bg-red-200 transition">⚠️ Eliminar Toda la Semana</button>
             </section>
 
-            <!-- VISTA MERCADO -->
             <section id="view-mercado" class="hidden space-y-4">
                 <div class="flex gap-2 mb-2">
                     <button onclick="app.abrirModalManual()" class="w-1/2 border-2 border-dashed border-gray-400 text-gray-600 font-bold py-2 rounded-lg bg-white">+ Manual</button>
@@ -93,7 +98,6 @@
                 <div id="lista-mercado"></div>
             </section>
 
-            <!-- VISTA PAGOS -->
             <section id="view-pagos" class="hidden space-y-4">
                 <button onclick="app.ejecutarSincronizacion(this)" class="w-full bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm mb-2">🔄 Sincronizar Datos</button>
                 
@@ -101,7 +105,6 @@
                     <h3 class="font-bold text-lg mb-4 text-center">Cuentas Claras</h3>
                     <button onclick="app.calcularPagos()" class="w-full bg-blue-600 text-white font-bold py-3 rounded shadow-md hover:bg-blue-700">Calcular Pagos del Mercado</button>
                     
-                    <!-- ENVOLTURA PARA OCULTAR TODO AL SINCRONIZAR -->
                     <div id="resultados-pagos" class="hidden mt-4 pt-4 border-t border-gray-200">
                         <p id="pagos-rango-fechas" class="text-center text-[11px] text-blue-600 font-bold bg-blue-50 py-1.5 rounded mb-4 uppercase tracking-widest"></p>
                         <div id="pagos-detalle"></div>
@@ -112,7 +115,6 @@
                 </div>
             </section>
 
-            <!-- VISTA REPORTES -->
             <section id="view-reportes" class="hidden space-y-4">
                 <button onclick="app.ejecutarSincronizacion(this)" class="w-full bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm mb-2">🔄 Sincronizar Datos</button>
                 
@@ -161,11 +163,21 @@
         </div>
     </div>
 
-    <!-- MODAL RECETA -->
+    <!-- MODAL RECETA (Con Tipo de Comida) -->
     <div id="modal-receta" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div class="bg-white w-full max-w-md p-5 rounded-xl max-h-full overflow-y-auto">
             <h2 id="titulo-modal-receta" class="font-bold mb-3 text-lg">Nueva Receta</h2>
+            
             <input type="text" id="rec-nombre" placeholder="Nombre del plato" class="w-full border p-2 mb-3 rounded font-bold text-gray-800 focus:ring-2 focus:ring-blue-500">
+            
+            <select id="rec-tipo" class="w-full border p-2 mb-3 rounded font-bold text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+                <option value="Desayuno">Desayuno</option>
+                <option value="Almuerzo" selected>Almuerzo</option>
+                <option value="Cena">Cena</option>
+                <option value="Snack">Snack</option>
+                <option value="Merienda">Merienda</option>
+            </select>
+
             <div class="bg-gray-50 p-3 rounded mb-3 border border-gray-200">
                 <h4 class="text-xs font-bold mb-2 text-gray-600">Ingredientes</h4>
                 <div class="flex gap-1 mb-1">
