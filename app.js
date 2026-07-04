@@ -1,10 +1,12 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbxsayfU-mKqqV7zWPD0_5nEhqxNImvBMVvrj1wHzwmtLk2az127d3-iQ1EW9G1EBwg/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbwBwB3KnOLZ_8g_eH94AnrEE10yVQA7bRZOLTtEpTc7EtLuhL-XvTqfKrSCnx-zs1A/exec
+"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
     semanaActual: null, tempIngredientes: [], editandoPlatoID: null, tempPlanMeta: null,
     filtroComprador: 'Todos', 
-    encargadosCategorias: {} 
+    encargadosCategorias: {},
+    vistaAgrupada: false // Controla el botón Unir/Desunir
 };
 
 const auth = {
@@ -19,7 +21,7 @@ const auth = {
 };
 
 window.onload = init;
-window.addEventListener('focus', () => { if(auth.getToken()) syncData(); });
+// ELIMINADO EL AUTO-SYNC AL VOLVER A LA APP
 
 async function init() {
     if (auth.getToken()) {
@@ -48,10 +50,11 @@ async function syncData() {
     const data = await api({ action: 'sync' }, true);
     if(!data) return;
     
-    // CORRECCIÓN: Al sincronizar, reiniciamos el filtro visual general a 'Todos', 
-    // pero CONSERVAMOS quién está a cargo de cada categoría en la memoria local.
-    const encargadosGuardados = state.encargadosCategorias || {};
-    state = {...state, ...data, filtroComprador: 'Todos', encargadosCategorias: encargadosGuardados};
+    // Mantiene en memoria los filtros asignados para no perderlos
+    const prevFiltroComprador = state.filtroComprador || 'Todos';
+    const prevEncargados = state.encargadosCategorias || {};
+    
+    state = {...state, ...data, filtroComprador: prevFiltroComprador, encargadosCategorias: prevEncargados};
     
     let activa = state.semanas.find(s => s.Estado === 'Activa');
     state.semanaActual = activa ? activa.Semana_ID : null;
@@ -65,6 +68,10 @@ async function syncData() {
         document.getElementById('filtro-editable').classList.add('hidden');
         document.getElementById('filtro-bloqueado').classList.remove('hidden');
         document.getElementById('txt-rango-fijo').innerText = `${formatearFechaAmigable(fIn)} al ${formatearFechaAmigable(fFin)}`;
+        
+        // Asignar límites al calendario de programación
+        document.getElementById('plan-fecha').min = fIn;
+        document.getElementById('plan-fecha').max = fFin;
     }
 
     renderAll();
@@ -176,6 +183,7 @@ function renderPlan() {
 }
 
 function renderMercado() {
+    // Render de botones de filtro y unión
     ['Todos', 'Carlos', 'Daniel'].forEach(v => {
         const btn = document.getElementById(`btn-comp-${v}`);
         if(btn) {
@@ -191,6 +199,17 @@ function renderMercado() {
         }
     });
 
+    const btnAgrupar = document.getElementById('btn-agrupar-mercado');
+    if (btnAgrupar) {
+        if(state.vistaAgrupada) {
+            btnAgrupar.innerHTML = '📦 Desunir';
+            btnAgrupar.className = 'w-1/4 bg-orange-100 text-orange-700 border border-orange-200 font-bold py-2 rounded-lg shadow-sm';
+        } else {
+            btnAgrupar.innerHTML = '📦 Unir';
+            btnAgrupar.className = 'w-1/4 bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold py-2 rounded-lg shadow-sm';
+        }
+    }
+
     const fInicio = document.getElementById('filtro-inicio').value;
     const fFin = document.getElementById('filtro-fin').value;
     let items = state.mercado.filter(m => m.Semana_ID === state.semanaActual);
@@ -203,6 +222,24 @@ function renderMercado() {
         });
     }
 
+    // LÓGICA DE AGRUPACIÓN VISUAL SEGURA
+    if (state.vistaAgrupada) {
+        const agrupadosExactos = {};
+        items.forEach(i => {
+            if (i.Origen === 'Agrupación' || i.Estado === 'Comprado_Bloqueado') {
+                agrupadosExactos[i.ID_Item] = i; // No mezclamos los totales cerrados
+                return;
+            }
+            const key = `${i.Articulo.toLowerCase().trim()}|${i.Categoria}|${i.Unidad}|${i.Para}|${i.Quien_Pago}`;
+            if (!agrupadosExactos[key]) {
+                agrupadosExactos[key] = { ...i, Cantidad: parseFloat(i.Cantidad) || 1 };
+            } else {
+                agrupadosExactos[key].Cantidad += (parseFloat(i.Cantidad) || 1);
+            }
+        });
+        items = Object.values(agrupadosExactos);
+    }
+
     const agrupado = items.reduce((acc, obj) => {
         acc[obj.Categoria] = acc[obj.Categoria] || [];
         acc[obj.Categoria].push(obj);
@@ -210,7 +247,13 @@ function renderMercado() {
     }, {});
 
     let infoFiltro = (fInicio || fFin) ? `🗓️ Mostrando del: ${fInicio||'∞'} al ${fFin||'∞'}` : `🗓️ Toda la semana`;
-    let html = `<div class="bg-blue-50 text-blue-800 font-bold p-3 rounded-lg text-center mb-4 text-xs border border-blue-200 shadow-sm">${infoFiltro}</div>`;
+    let html = '';
+    
+    if (state.vistaAgrupada) {
+        html += `<div class="bg-orange-100 text-orange-800 text-xs font-bold p-3 text-center mb-3 rounded-lg border border-orange-200 shadow-sm">⚠️ Vista Agrupada Activada.<br>Desune para poder ingresar los precios individualmente.</div>`;
+    }
+
+    html += `<div class="bg-blue-50 text-blue-800 font-bold p-3 rounded-lg text-center mb-4 text-xs border border-blue-200 shadow-sm">${infoFiltro}</div>`;
     
     if(items.length === 0) html += '<p class="text-center text-gray-400 mt-6 font-bold">No hay compras para estas fechas.</p>';
     
@@ -246,27 +289,28 @@ function renderMercado() {
         arts.forEach(a => {
             const isBlocked = a.Estado === 'Comprado_Bloqueado';
             const isComprado = a.Estado === 'Comprado';
+            const disableInput = (isBlocked || state.vistaAgrupada) ? 'disabled' : '';
             const txtUnidad = a.Origen === 'Agrupación' ? '(Total)' : `(${a.Cantidad || 1} ${a.Unidad})`; 
             const commentHtml = a.Comentario ? `<p class="text-[9px] italic text-blue-500 mt-1 font-bold">"${a.Comentario}"</p>` : '';
             
             html += `
             <div id="row-${a.ID_Item}" class="flex flex-wrap gap-2 items-center p-2 border-b border-gray-100 last:border-0 bg-gray-50 rounded">
-                <input type="checkbox" class="chk-estado w-4 h-4 accent-blue-600" ${isComprado||isBlocked ? 'checked' : ''} ${isBlocked ? 'disabled' : ''} onchange="app.updateItem('${a.ID_Item}')">
+                <input type="checkbox" class="chk-estado w-4 h-4 accent-blue-600" ${isComprado||isBlocked ? 'checked' : ''} ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
                 <div class="flex-1 flex flex-col min-w-0">
                     <span class="font-bold text-xs truncate ${isBlocked ? 'line-through text-gray-400' : 'text-gray-800'}">${a.Articulo} <span class="font-normal text-blue-600">${txtUnidad}</span></span>
                     ${commentHtml}
                 </div>
-                <select class="sel-para border p-1 text-[10px] rounded font-bold text-gray-700 outline-none" ${isBlocked ? 'disabled' : ''} onchange="app.updateItem('${a.ID_Item}')">
+                <select class="sel-para border p-1 text-[10px] rounded font-bold text-gray-700 outline-none" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
                     <option value="Ambos" ${a.Para==='Ambos'?'selected':''}>Para: Ambos</option>
                     <option value="Carlos" ${a.Para==='Carlos'?'selected':''}>Para: Carlos</option>
                     <option value="Daniel" ${a.Para==='Daniel'?'selected':''}>Para: Daniel</option>
                 </select>
-                <select class="sel-quien border p-1 text-[10px] rounded font-bold text-gray-700 outline-none" ${isBlocked ? 'disabled' : ''} onchange="app.updateItem('${a.ID_Item}')">
+                <select class="sel-quien border p-1 text-[10px] rounded font-bold text-gray-700 outline-none" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
                     <option value="Pendiente" ${a.Quien_Pago==='Pendiente'?'selected':''}>Pago: Pndte.</option>
                     <option value="Carlos" ${a.Quien_Pago==='Carlos'?'selected':''}>Pago: Carlos</option>
                     <option value="Daniel" ${a.Quien_Pago==='Daniel'?'selected':''}>Pago: Daniel</option>
                 </select>
-                <input type="number" class="inp-precio border border-gray-300 p-1 text-[10px] w-14 rounded text-center font-bold text-gray-800 outline-none" placeholder="S/" value="${a.Precio||''}" ${isBlocked ? 'disabled' : ''} onchange="app.updateItem('${a.ID_Item}')">
+                <input type="number" class="inp-precio border border-gray-300 p-1 text-[10px] w-14 rounded text-center font-bold text-gray-800 outline-none" placeholder="S/" value="${a.Precio||''}" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
             </div>`;
         });
         html += `</div></div>`;
@@ -278,6 +322,12 @@ function renderMercado() {
 const app = {
     setFiltroComprador: (val) => { state.filtroComprador = val; renderMercado(); },
     setEncargadoCat: (cat, val) => { state.encargadosCategorias[cat] = val; renderMercado(); },
+    
+    // TOGGLE AGRUPAR
+    toggleAgruparMercado: () => {
+        state.vistaAgrupada = !state.vistaAgrupada;
+        renderMercado();
+    },
 
     confirmarSemana: () => {
         const fIn = document.getElementById('filtro-inicio').value;
@@ -288,6 +338,10 @@ const app = {
         document.getElementById('filtro-bloqueado').classList.remove('hidden');
         document.getElementById('txt-rango-fijo').innerText = `${formatearFechaAmigable(fIn)} al ${formatearFechaAmigable(fFin)}`;
 
+        // Limita el calendario de programación al rango
+        document.getElementById('plan-fecha').min = fIn;
+        document.getElementById('plan-fecha').max = fFin;
+
         app.aplicarFiltroGlobal();
         ui.toggleModal('modal-exito');
         api({ action: 'update_semana_dates', semana_id: state.semanaActual, fInicio: fIn, fFin: fFin }, true);
@@ -296,6 +350,8 @@ const app = {
     modificarSemana: () => {
         document.getElementById('filtro-bloqueado').classList.add('hidden');
         document.getElementById('filtro-editable').classList.remove('hidden');
+        document.getElementById('plan-fecha').removeAttribute('min');
+        document.getElementById('plan-fecha').removeAttribute('max');
     },
 
     aplicarFiltroGlobal: () => {
@@ -379,7 +435,15 @@ const app = {
         const fecha = document.getElementById('plan-fecha').value; 
         const id_plato = document.getElementById('plan-plato').value;
         const plato = state.recetario.find(p => p.ID_Plato === id_plato);
+        
         if(!fecha) return alert("Selecciona una fecha.");
+        
+        const fIn = document.getElementById('filtro-inicio').value;
+        const fFin = document.getElementById('filtro-fin').value;
+        if(fIn && fFin && (fecha < fIn || fecha > fFin)) {
+            return alert(`Por favor, programa el plato dentro de la semana seleccionada:\nDel ${formatearFechaAmigable(fIn)} al ${formatearFechaAmigable(fFin)}.`);
+        }
+
         if(!plato) return alert("Selecciona un plato.");
         state.tempPlanMeta = { fecha, id_plato: plato.ID_Plato, nombre_plato: plato.Nombre };
         state.tempIngredientes = JSON.parse(plato.Ingredientes_JSON || '[]');
@@ -423,12 +487,15 @@ const app = {
         state.plan = state.plan.filter(p => p.Plan_ID !== planID); state.mercado = state.mercado.filter(m => m.Plan_ID !== planID);
         renderPlan(); renderMercado(); api({ action: 'delete_plan', plan_id: planID }, true);
     },
+    
     eliminarSemanaActual: async () => {
         if(!confirm("⚠️ PELIGRO: ¿Estás seguro que deseas ELIMINAR TODA LA SEMANA ACTUAL?\n\nEsto borrará todo el plan programado y todo el mercado de la semana activa. Esta acción no se puede deshacer.")) return;
         if(!confirm("¿ÚLTIMA ADVERTENCIA: Confirmas eliminar la semana completa?")) return;
         
+        // Limpiamos la vista inmediatamente
         document.getElementById('filtro-inicio').value = '';
         document.getElementById('filtro-fin').value = '';
+        document.getElementById('plan-fecha').value = '';
         app.modificarSemana();
         
         document.getElementById('sync-spinner').classList.remove('hidden');
@@ -472,13 +539,6 @@ const app = {
         api({ action: 'update_item', data: { id, para, quien_pago: quien, precio: item.Precio, estado } }, true); 
     },
     
-    agruparMercado: async () => {
-        if(!confirm("📦 ¿Agrupar productos idénticos?\n\nEsto unirá artículos con el mismo Nombre, Categoría, Unidad, Para y Pago para no alterar las cuentas.")) return;
-        document.getElementById('sync-spinner').classList.remove('hidden');
-        await api({ action: 'agrupar_mercado', semana_id: state.semanaActual }, true);
-        await syncData();
-    },
-
     cerrarCategoria: (cat) => {
         const cont = document.getElementById(`cat-head-${cat}`);
         const totalInput = parseFloat(cont.querySelector('.cat-total').value) || 0;
@@ -528,6 +588,12 @@ const app = {
                 const f = m.Fecha.substring(0, 10);
                 return (!fIn || f >= fIn) && (!fFin || f <= fFin);
             });
+        }
+        
+        // ALERTA DE PREVENCIÓN: Bloquea el cálculo si hay cosas pendientes
+        const pendientes = items.some(i => i.Estado === 'Pendiente' && i.Origen !== 'Agrupación');
+        if (pendientes) {
+            return alert("⚠️ Aún tienes artículos pendientes de compra.\n\nPor favor, ingresa sus precios individualmente o cierra la categoría completa en la vista Mercado antes de sacar las cuentas finales.");
         }
         
         let pagoCarlos = 0, pagoDaniel = 0, gastoAmbos = 0, gastoCarlos = 0, gastoDaniel = 0;
