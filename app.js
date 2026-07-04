@@ -1,9 +1,8 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbw3WIXg3M-b44pMyk_v3LMRrd9CbxCrlbaTDAihewrUsgLrLvwCOr-19dgoE0B5vcc/exec"; 
+const API_URL = "TU_URL_DE_APPS_SCRIPT_AQUI"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
-    semanaActual: null, tempIngredientes: [], editandoPlatoID: null,
-    tempPlanMeta: null 
+    semanaActual: null, tempIngredientes: [], editandoPlatoID: null, tempPlanMeta: null
 };
 
 const auth = {
@@ -13,10 +12,7 @@ const auth = {
         localStorage.setItem('kompra_token', token);
         location.reload(); 
     },
-    cerrarSesion: () => {
-        localStorage.removeItem('kompra_token');
-        location.reload();
-    },
+    cerrarSesion: () => { localStorage.removeItem('kompra_token'); location.reload(); },
     getToken: () => localStorage.getItem('kompra_token')
 };
 
@@ -33,49 +29,45 @@ async function init() {
     } else {
         document.getElementById('login-screen')?.classList.remove('hidden');
         document.getElementById('app-screen')?.classList.add('hidden');
-        document.getElementById('app-screen')?.classList.remove('flex');
     }
 }
 
 async function api(payload, silent = false) {
     payload.token = auth.getToken(); 
-    if(!silent) document.getElementById('sync-spinner').classList.remove('hidden');
+    if(!silent) document.getElementById('sync-spinner')?.classList.remove('hidden');
     try {
         const req = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
         const res = await req.json();
-        if (res.error) {
-            alert(res.error);
-            if (res.error.toLowerCase().includes('denegado')) auth.cerrarSesion();
-            return null;
-        }
         return res;
-    } catch(e) { 
-        return null;
-    } finally { 
-        if(!silent) document.getElementById('sync-spinner').classList.add('hidden'); 
-    }
+    } catch(e) { return null; } finally { if(!silent) document.getElementById('sync-spinner')?.classList.add('hidden'); }
 }
 
 async function syncData() {
     const data = await api({ action: 'sync' }, true);
     if(!data) return;
-    state = {...state, ...data, tempIngredientes: []};
-    
+    state = {...state, ...data};
     let activa = state.semanas.find(s => s.Estado === 'Activa');
     state.semanaActual = activa ? activa.Semana_ID : null;
-
-    actualizarDiccionario();
     renderAll();
 }
 
 const ui = {
     nav: (vista) => {
         ['recetario', 'plan', 'mercado', 'pagos', 'reportes'].forEach(v => {
-            document.getElementById(`view-${v}`).classList.add('hidden');
-            document.getElementById(`btn-nav-${v}`).classList.replace('text-blue-600', 'text-gray-500');
+            document.getElementById(`view-${v}`)?.classList.add('hidden');
+            document.getElementById(`btn-nav-${v}`)?.classList.replace('text-blue-600', 'text-gray-500');
         });
-        document.getElementById(`view-${vista}`).classList.remove('hidden');
-        document.getElementById(`btn-nav-${vista}`).classList.replace('text-gray-500', 'text-blue-600');
+        document.getElementById(`view-${vista}`)?.classList.remove('hidden');
+        document.getElementById(`btn-nav-${vista}`)?.classList.replace('text-gray-500', 'text-blue-600');
+        
+        // AUTO-FECHA EN REPORTES BASADO EN LA SEMANA ACTIVA
+        if (vista === 'reportes') {
+            const activa = state.semanas.find(s => s.Estado === 'Activa');
+            if(activa && activa.Fecha_Inicio && !document.getElementById('rep-inicio').value) {
+                document.getElementById('rep-inicio').value = activa.Fecha_Inicio.substring(0, 10);
+                document.getElementById('rep-fin').value = new Date().toISOString().substring(0, 10);
+            }
+        }
     },
     toggleModal: (id) => document.getElementById(id).classList.toggle('hidden')
 };
@@ -88,7 +80,6 @@ function formatearFechaAmigable(fechaStr) {
     if(!fechaStr) return 'Fecha Inválida';
     const puraFecha = fechaStr.substring(0, 10);
     const partes = puraFecha.split('-');
-    if(partes.length !== 3) return puraFecha; 
     const dateObj = new Date(partes[0], parseInt(partes[1])-1, partes[2]);
     return dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: 'short' });
 }
@@ -151,7 +142,8 @@ function renderPlan() {
                     ${platos.map(p => `
                         <div class="p-3 bg-blue-50 text-blue-900 rounded-lg text-sm border border-blue-100 flex flex-col gap-2">
                             <div class="flex justify-between items-start">
-                                <span class="font-bold pr-2">🍽️ ${p.Nombre_Plato}</span>
+                                <!-- NUEVO: Clic para ver ingredientes -->
+                                <span class="font-bold pr-2 cursor-pointer hover:underline" onclick="app.verIngredientesPlan('${p.Plan_ID}', '${p.Nombre_Plato}')">🍽️ ${p.Nombre_Plato} <span class="text-[10px] font-normal text-blue-500">(Ver 🛒)</span></span>
                                 <button onclick="app.eliminarPlan('${p.Plan_ID}')" class="text-red-500 font-bold bg-red-100 px-3 py-1 rounded text-xs hover:bg-red-200 shadow-sm transition">X</button>
                             </div>
                             <div class="flex items-center gap-2 mt-1">
@@ -202,7 +194,7 @@ function renderMercado() {
                 <select class="cat-para text-black text-[10px] p-1 rounded font-bold outline-none"><option value="Ambos">Para: Ambos</option><option value="Carlos">Para: Carlos</option><option value="Daniel">Para: Daniel</option></select>
                 <select class="cat-quien text-black text-[10px] p-1 rounded font-bold outline-none"><option value="Pendiente">Pago: Pndte.</option><option value="Carlos">Pago: Carlos</option><option value="Daniel">Pago: Daniel</option></select>
                 <input type="number" class="cat-total text-black text-[10px] p-1 rounded font-bold w-16 text-center outline-none" placeholder="Costo S/">
-                <button onclick="app.bloquearCategoria('${cat}')" class="bg-red-500 px-2 py-1 rounded text-[10px] font-bold hover:bg-red-600 shadow-sm">Bloquear Total</button>
+                <button onclick="app.cerrarCategoria('${cat}')" class="bg-red-500 px-3 py-1 rounded text-xs font-bold hover:bg-red-600 shadow-sm">Cerrar</button>
             </div>
             <div class="p-2 space-y-2">
         `;
@@ -265,7 +257,7 @@ const app = {
         app.renderTempIngredientes(contexto);
     },
     
-    // NUEVO: Editar ingrediente antes de programar
+    // NUEVO: Editar (Lápiz) para Modificar Artículo
     editarIngredienteTemp: (index, contexto) => {
         const prefix = contexto === 'rec' ? 'rec' : 'plan';
         const item = state.tempIngredientes[index];
@@ -285,6 +277,7 @@ const app = {
         state.tempIngredientes.splice(index, 1);
         app.renderTempIngredientes(contexto);
     },
+    
     renderTempIngredientes: (contexto) => {
         const prefix = contexto === 'rec' ? 'rec' : 'plan';
         const listaId = contexto === 'rec' ? 'lista-ingredientes-temp' : 'lista-plan-ingredientes-temp';
@@ -293,14 +286,14 @@ const app = {
 
         lista.innerHTML = state.tempIngredientes.map((i, index) => `
             <li class="flex justify-between items-center border-b border-gray-100 pb-2 last:border-0 text-gray-700">
-                <div class="flex flex-col flex-1">
+                <div class="flex flex-col flex-1 pr-2">
                     <span>${i.articulo} <span class="font-bold text-blue-600 ml-1">${i.cantidad} ${i.unidad}</span></span>
                     <span class="text-[10px] uppercase text-gray-400 font-bold">Para: ${i.para || 'Ambos'} | Pago: ${i.quien_pago || 'Pendiente'}</span>
                     ${i.comentario ? `<span class="text-[9px] text-blue-400 italic">"${i.comentario}"</span>` : ''}
                 </div>
                 <div class="flex gap-1">
-                    <button type="button" onclick="app.editarIngredienteTemp(${index}, '${contexto}')" class="text-blue-500 font-bold px-2 py-1 bg-blue-50 rounded text-xs hover:bg-blue-100">✏️</button>
-                    <button type="button" onclick="app.removerIngredienteTemp(${index}, '${contexto}')" class="text-red-500 font-bold px-2 py-1 bg-red-50 rounded text-xs hover:bg-red-100">X</button>
+                    <button type="button" onclick="app.editarIngredienteTemp(${index}, '${contexto}')" class="text-blue-500 font-bold px-3 py-1 bg-blue-50 rounded text-xs hover:bg-blue-100 shadow-sm">✏️</button>
+                    <button type="button" onclick="app.removerIngredienteTemp(${index}, '${contexto}')" class="text-red-500 font-bold px-3 py-1 bg-red-50 rounded text-xs hover:bg-red-100 shadow-sm">X</button>
                 </div>
             </li>`).join('');
     },
@@ -381,6 +374,26 @@ const app = {
 
         api({ action: 'save_plan', plan_id: planID, semana_id: state.semanaActual, fecha: meta.fecha, id_plato: meta.id_plato, nombre_plato: meta.nombre_plato, ingredientes: JSON.stringify(state.tempIngredientes) }, true);
     },
+    
+    // NUEVO: Ver ingredientes programados en solo lectura
+    verIngredientesPlan: (planID, nombrePlato) => {
+        const items = state.mercado.filter(m => m.Plan_ID === planID);
+        document.getElementById('subtitulo-ver-ingredientes').innerText = nombrePlato;
+        const lista = document.getElementById('lista-ver-ingredientes');
+        
+        if (items.length === 0) {
+            lista.innerHTML = '<li class="text-gray-400">Ingredientes ya no disponibles o eliminados.</li>';
+        } else {
+            lista.innerHTML = items.map(i => `
+                <li class="border-b border-gray-200 pb-1 last:border-0">
+                    <span class="font-bold text-gray-800">${i.Articulo}</span> <span class="text-blue-600">(${i.Cantidad || 1} ${i.Unidad})</span>
+                    ${i.Comentario ? `<p class="text-[9px] text-gray-500 italic mt-0.5">"${i.Comentario}"</p>` : ''}
+                </li>
+            `).join('');
+        }
+        ui.toggleModal('modal-ver-ingredientes');
+    },
+
     cambiarFechaPlan: (planID, nuevaFecha) => {
         if(!nuevaFecha) return;
         const planIdx = state.plan.findIndex(p => p.Plan_ID === planID);
@@ -399,7 +412,7 @@ const app = {
         api({ action: 'delete_plan', plan_id: planID }, true);
     },
 
-    // ---- Mercado Manual y Bloqueo ----
+    // ---- Mercado Manual y Cierre Inteligente ----
     abrirModalManual: () => {
         const fInicio = document.getElementById('filtro-inicio').value;
         document.getElementById('man-fecha').value = fInicio || new Date().toISOString().substring(0, 10);
@@ -438,7 +451,6 @@ const app = {
         const precioVal = parseFloat(row.querySelector('.inp-precio').value) || 0;
         let estado = row.querySelector('.chk-estado').checked ? "Comprado" : "Pendiente";
 
-        // MEJORA: Auto-marcar como comprado si ingresas precio y responsable
         if (precioVal > 0 && quien !== 'Pendiente' && estado === 'Pendiente') {
             estado = "Comprado";
             row.querySelector('.chk-estado').checked = true;
@@ -456,35 +468,53 @@ const app = {
         api({ action: 'update_item', data: { id, para, quien_pago: quien, precio: item.Precio, estado } }, true); 
     },
     
-    bloquearCategoria: (cat) => {
+    cerrarCategoria: (cat) => {
         const cont = document.getElementById(`cat-head-${cat}`);
-        const totalInput = cont.querySelector('.cat-total').value;
-        if(!totalInput || parseFloat(totalInput) <= 0) return alert("Ingresa el Costo S/ en el cuadro antes de bloquear.");
-        
-        // ALERTA DE CONFIRMACIÓN ANTES DE CERRAR
-        if(!confirm(`¿Seguro que deseas cerrar la categoría "${cat}" por un total de S/ ${totalInput}?\n\nOJO: Se anularán los precios individuales que hayas ingresado en esta categoría para evitar doble cobro.`)) return;
-
+        const totalInput = parseFloat(cont.querySelector('.cat-total').value) || 0;
         const para = cont.querySelector('.cat-para').value;
         const quien = cont.querySelector('.cat-quien').value;
+        
+        // Verificamos si todos los artículos de esta categoría ya tienen precio individual
+        const itemsCat = state.mercado.filter(m => m.Semana_ID === state.semanaActual && m.Categoria === cat && m.Estado === "Pendiente");
+        const todosTienenPrecio = itemsCat.length > 0 && itemsCat.every(m => parseFloat(m.Precio) > 0);
+
+        if(totalInput === 0 && !todosTienenPrecio) {
+            alert(`Para cerrar la categoría "${cat}" debes:\n\n1. Colocar el Costo Total general en la caja de arriba.\nO\n2. Ingresar el precio a TODOS los artículos de la lista individualmente.`);
+            return;
+        }
+
+        const tipoCierre = totalInput > 0 ? "total" : "individual";
+        
+        let msg = `¿Seguro que deseas CERRAR la categoría "${cat}"?\n\n`;
+        if (tipoCierre === "total") {
+            msg += `Has indicado un Total Global de S/ ${totalInput}. Los precios individuales que hayas colocado en esta categoría se ignorarán para evitar cobrarte doble.`;
+        } else {
+            msg += `Todos los artículos tienen precio individual. Se bloquearán para proteger la suma.`;
+        }
+
+        if(!confirm(msg)) return;
+
         const fInicio = document.getElementById('filtro-inicio').value;
         const fechaBloqueo = fInicio || new Date().toISOString().substring(0, 10);
 
-        // Anular precios individuales locales
-        state.mercado.forEach(m => {
-            if(m.Semana_ID === state.semanaActual && m.Categoria === cat && m.Origen !== "Agrupación") {
-                m.Para = para; m.Quien_Pago = quien; m.Precio = 0; m.Estado = "Comprado_Bloqueado";
+        // Actualizamos localmente de forma instantánea
+        itemsCat.forEach(m => {
+            if(tipoCierre === "total") {
+                m.Para = para; m.Quien_Pago = quien; m.Precio = 0; 
             }
+            m.Estado = "Comprado_Bloqueado";
         });
         
-        // Agregar ítem de Total
-        state.mercado.push({
-            ID_Item: "ITM-" + Date.now(), Semana_ID: state.semanaActual, Plan_ID: "", Articulo: "TOTAL " + cat, Categoria: cat, 
-            Unidad: "soles", Cantidad: 1, Para: para, Quien_Pago: quien, Precio: totalInput, Estado: "Comprado", 
-            Origen: "Agrupación", Fecha: fechaBloqueo, Comentario: "Cierre de categoría"
-        });
+        if (tipoCierre === "total") {
+            state.mercado.push({
+                ID_Item: "ITM-" + Date.now(), Semana_ID: state.semanaActual, Plan_ID: "", Articulo: "TOTAL " + cat, Categoria: cat, 
+                Unidad: "soles", Cantidad: 1, Para: para, Quien_Pago: quien, Precio: totalInput, Estado: "Comprado", 
+                Origen: "Agrupación", Fecha: fechaBloqueo, Comentario: "Cierre de categoría"
+            });
+        }
 
         renderMercado();
-        api({ action: 'block_categoria', semana_id: state.semanaActual, categoria: cat, total: totalInput, para: para, quien_pago: quien, fecha: fechaBloqueo }, true);
+        api({ action: 'cerrar_categoria', semana_id: state.semanaActual, categoria: cat, total: totalInput, para: para, quien_pago: quien, fecha: fechaBloqueo, tipo_cierre: tipoCierre }, true);
     },
 
     // ---- PAGOS ----
@@ -509,7 +539,7 @@ const app = {
 
         items.forEach(i => {
             let p = parseFloat(i.Precio) || 0;
-            // AHORA SÍ CALCULA BIEN: Suma todo lo individual + totales de categoría cerradas
+            // AHORA SÍ CALCULA BIEN: Suma los individuales bloqueados y los totales genéricos sin sobreponerse
             if (p > 0 && i.Quien_Pago !== 'Pendiente' && (i.Estado === 'Comprado' || i.Estado === 'Comprado_Bloqueado' || i.Origen === 'Agrupación')) {
                 listaValidos.push(i); 
                 if(i.Quien_Pago === 'Carlos') pagoCarlos += p;
