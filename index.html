@@ -165,6 +165,16 @@
         </div>
     </div>
 
+    <!-- NUEVO MODAL: VER INGREDIENTES PLAN (Solo Lectura) -->
+    <div id="modal-ver-ingredientes" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+        <div class="bg-white w-full max-w-md p-5 rounded-xl max-h-full overflow-y-auto">
+            <h2 id="titulo-ver-ingredientes" class="font-bold mb-1 text-lg text-blue-900">Ingredientes del Plato</h2>
+            <p id="subtitulo-ver-ingredientes" class="text-xs text-gray-500 font-bold uppercase mb-4 border-b pb-2"></p>
+            <ul id="lista-ver-ingredientes" class="text-xs space-y-2 bg-gray-50 rounded-lg p-3 border border-gray-200 max-h-60 overflow-y-auto"></ul>
+            <button onclick="ui.toggleModal('modal-ver-ingredientes')" class="w-full mt-4 bg-gray-800 text-white py-3 rounded-lg font-bold hover:bg-gray-900">Cerrar Lista</button>
+        </div>
+    </div>
+
     <!-- MODAL MANUAL MERCADO -->
     <div id="modal-item-manual" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div class="bg-white w-full max-w-md p-5 rounded-xl">
