@@ -24,11 +24,15 @@
         </header>
 
         <main class="flex-1 overflow-y-auto p-4 pb-24">
+            
+            <!-- VISTA RECETARIO -->
             <section id="view-recetario" class="hidden space-y-4">
+                <button onclick="syncData()" class="w-full bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm mb-2">🔄 Sincronizar Datos</button>
                 <button onclick="app.abrirNuevaReceta()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow mb-2">+ Nuevo Plato</button>
                 <div id="lista-recetario" class="space-y-3"></div>
             </section>
 
+            <!-- VISTA PLAN -->
             <section id="view-plan" class="hidden space-y-4">
                 <button onclick="syncData()" class="w-full bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm mb-2">🔄 Sincronizar Datos</button>
                 
@@ -66,14 +70,14 @@
                 <button onclick="app.eliminarSemanaActual()" class="w-full bg-red-100 text-red-600 border border-red-200 font-bold py-3 rounded-xl shadow-sm mt-6 hover:bg-red-200 transition">⚠️ Eliminar Toda la Semana</button>
             </section>
 
+            <!-- VISTA MERCADO -->
             <section id="view-mercado" class="hidden space-y-4">
                 <div class="flex gap-2 mb-2">
                     <button onclick="app.abrirModalManual()" class="w-1/2 border-2 border-dashed border-gray-400 text-gray-600 font-bold py-2 rounded-lg bg-white">+ Manual</button>
                     <button onclick="syncData()" class="w-1/4 bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm">🔄</button>
-                    <button onclick="app.agruparMercado()" class="w-1/4 bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold py-2 rounded-lg shadow-sm">📦 Unir</button>
+                    <button id="btn-agrupar-mercado" onclick="app.toggleAgruparMercado()" class="w-1/4 bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold py-2 rounded-lg shadow-sm">📦 Unir</button>
                 </div>
 
-                <!-- NUEVO: Filtro de Comprador para Supermercado -->
                 <div class="bg-white p-2 rounded-xl border border-gray-200 shadow-sm mb-3 flex flex-col items-center">
                     <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Mostrar Lista De:</span>
                     <div class="flex gap-2 w-full">
@@ -86,7 +90,10 @@
                 <div id="lista-mercado"></div>
             </section>
 
+            <!-- VISTA PAGOS -->
             <section id="view-pagos" class="hidden space-y-4">
+                <button onclick="syncData()" class="w-full bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm mb-2">🔄 Sincronizar Datos</button>
+                
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                     <h3 class="font-bold text-lg mb-4 text-center">Cuentas Claras</h3>
                     <p id="pagos-rango-fechas" class="text-center text-xs text-blue-600 font-bold bg-blue-50 py-1 rounded mb-4"></p>
@@ -101,7 +108,10 @@
                 </div>
             </section>
 
+            <!-- VISTA REPORTES -->
             <section id="view-reportes" class="hidden space-y-4">
+                <button onclick="syncData()" class="w-full bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm mb-2">🔄 Sincronizar Datos</button>
+                
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                     <h3 class="font-bold text-lg mb-3">Historial de Gastos</h3>
                     <div class="flex gap-2 mb-3">
@@ -147,7 +157,7 @@
         </div>
     </div>
 
-    <!-- MODALES EXISTENTES -->
+    <!-- MODAL RECETA -->
     <div id="modal-receta" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div class="bg-white w-full max-w-md p-5 rounded-xl max-h-full overflow-y-auto">
             <h2 id="titulo-modal-receta" class="font-bold mb-3 text-lg">Nueva Receta</h2>
@@ -175,6 +185,7 @@
         </div>
     </div>
 
+    <!-- MODAL AJUSTAR PLAN -->
     <div id="modal-plan-ingredientes" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div class="bg-white w-full max-w-md p-5 rounded-xl max-h-full overflow-y-auto border-t-4 border-green-500">
             <h2 class="font-bold mb-1 text-lg">Ajustar Ingredientes</h2>
@@ -201,6 +212,7 @@
         </div>
     </div>
 
+    <!-- MODAL VER INGREDIENTES -->
     <div id="modal-ver-ingredientes" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div class="bg-white w-full max-w-md p-5 rounded-xl max-h-full overflow-y-auto">
             <h2 id="titulo-ver-ingredientes" class="font-bold mb-1 text-lg text-blue-900">Ingredientes del Plato</h2>
@@ -210,6 +222,7 @@
         </div>
     </div>
 
+    <!-- MODAL MERCADO MANUAL -->
     <div id="modal-item-manual" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div class="bg-white w-full max-w-md p-5 rounded-xl">
             <h2 class="font-bold mb-3 text-lg">Agregar al Mercado</h2>
