@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbz_MVDJiopS6GGCMxvq7PvsGNMRyGwe0KgXpMn_P12u8mCRhITXWks2xQ16DqAIH24/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbwone03rRJnwlysrMgpHhv6iX-MCZCOfUuPiwCxK_uTqH59IvpfOfqFq8Ug2tt0hMM/exec"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
@@ -29,7 +29,6 @@ async function init() {
     } else {
         document.getElementById('login-screen')?.classList.remove('hidden');
         document.getElementById('app-screen')?.classList.add('hidden');
-        document.getElementById('app-screen')?.classList.remove('flex');
     }
 }
 
@@ -39,14 +38,8 @@ async function api(payload, silent = false) {
     try {
         const req = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
         const res = await req.json();
-        if (res.error) {
-            alert(res.error);
-            if (res.error.toLowerCase().includes('denegado')) auth.cerrarSesion();
-            return null;
-        }
         return res;
-    } catch(e) { return null; } 
-    finally { if(!silent) document.getElementById('sync-spinner')?.classList.add('hidden'); }
+    } catch(e) { return null; } finally { if(!silent) document.getElementById('sync-spinner')?.classList.add('hidden'); }
 }
 
 async function syncData() {
@@ -55,6 +48,19 @@ async function syncData() {
     state = {...state, ...data};
     let activa = state.semanas.find(s => s.Estado === 'Activa');
     state.semanaActual = activa ? activa.Semana_ID : null;
+    
+    // Auto-aplicar las fechas bloqueadas desde la BD
+    if(activa && activa.Fecha_Inicio && activa.Fecha_Fin) {
+        const fIn = typeof activa.Fecha_Inicio === 'string' ? activa.Fecha_Inicio.substring(0,10) : new Date(activa.Fecha_Inicio).toISOString().substring(0,10);
+        const fFin = typeof activa.Fecha_Fin === 'string' ? activa.Fecha_Fin.substring(0,10) : new Date(activa.Fecha_Fin).toISOString().substring(0,10);
+        document.getElementById('filtro-inicio').value = fIn;
+        document.getElementById('filtro-fin').value = fFin;
+        
+        document.getElementById('filtro-editable').classList.add('hidden');
+        document.getElementById('filtro-bloqueado').classList.remove('hidden');
+        document.getElementById('txt-rango-fijo').innerText = `${formatearFechaAmigable(fIn)} al ${formatearFechaAmigable(fFin)}`;
+    }
+
     renderAll();
 }
 
@@ -72,12 +78,6 @@ const ui = {
             const fFin = document.getElementById('filtro-fin').value;
             if(fIn) document.getElementById('rep-inicio').value = fIn;
             if(fFin) document.getElementById('rep-fin').value = fFin;
-            
-            const activa = state.semanas.find(s => s.Estado === 'Activa');
-            if(activa && activa.Fecha_Inicio && !document.getElementById('rep-inicio').value) {
-                document.getElementById('rep-inicio').value = activa.Fecha_Inicio.substring(0, 10);
-                document.getElementById('rep-fin').value = new Date().toISOString().substring(0, 10);
-            }
         }
     },
     toggleModal: (id) => document.getElementById(id).classList.toggle('hidden')
@@ -104,8 +104,8 @@ function renderRecetario() {
             <div class="flex justify-between items-start mb-2">
                 <h4 class="font-bold text-gray-800 text-lg">${r.Nombre}</h4>
                 <div class="flex gap-2">
-                    <button onclick="app.abrirEditarReceta('${r.ID_Plato}')" class="text-blue-500 text-xs font-bold bg-blue-50 px-2 py-1 rounded shadow-sm hover:bg-blue-100">Editar</button>
-                    <button onclick="app.eliminarReceta('${r.ID_Plato}')" class="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded shadow-sm hover:bg-red-100">Eliminar</button>
+                    <button onclick="app.abrirEditarReceta('${r.ID_Plato}')" class="text-blue-500 text-xs font-bold bg-blue-50 px-2 py-1 rounded shadow-sm">Editar</button>
+                    <button onclick="app.eliminarReceta('${r.ID_Plato}')" class="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded shadow-sm">Eliminar</button>
                 </div>
             </div>
             <div class="text-xs bg-gray-50 p-2 rounded text-gray-600 divide-y divide-gray-200">
@@ -241,15 +241,34 @@ function renderMercado() {
 
 // ================= CONTROLADOR PRINCIPAL =================
 const app = {
+    // NUEVO: Funciones para Confirmar y Modificar la Semana
+    confirmarSemana: () => {
+        const fIn = document.getElementById('filtro-inicio').value;
+        const fFin = document.getElementById('filtro-fin').value;
+        
+        if(!fIn || !fFin) return alert("Por favor selecciona la Fecha de Inicio y la Fecha de Fin.");
+
+        // Bloquear UI
+        document.getElementById('filtro-editable').classList.add('hidden');
+        document.getElementById('filtro-bloqueado').classList.remove('hidden');
+        document.getElementById('txt-rango-fijo').innerText = `${formatearFechaAmigable(fIn)} al ${formatearFechaAmigable(fFin)}`;
+
+        app.aplicarFiltroGlobal();
+        ui.toggleModal('modal-exito');
+
+        // Guardar en BD para que el otro celular lo sincronice
+        api({ action: 'update_semana_dates', semana_id: state.semanaActual, fInicio: fIn, fFin: fFin }, true);
+    },
+
+    modificarSemana: () => {
+        document.getElementById('filtro-bloqueado').classList.add('hidden');
+        document.getElementById('filtro-editable').classList.remove('hidden');
+    },
+
     aplicarFiltroGlobal: () => {
         renderPlan();
         renderMercado();
         if(!document.getElementById('view-pagos').classList.contains('hidden')) app.calcularPagos();
-    },
-    limpiarFiltroGlobal: () => {
-        document.getElementById('filtro-inicio').value = '';
-        document.getElementById('filtro-fin').value = '';
-        app.aplicarFiltroGlobal();
     },
 
     addIngredienteTemp: (contexto) => {
@@ -374,7 +393,6 @@ const app = {
     eliminarSemanaActual: async () => {
         if(!confirm("⚠️ PELIGRO: ¿Estás seguro que deseas ELIMINAR TODA LA SEMANA ACTUAL?\n\nEsto borrará todo el plan programado y todo el mercado de la semana activa. Esta acción no se puede deshacer.")) return;
         if(!confirm("¿ÚLTIMA ADVERTENCIA: Confirmas eliminar la semana completa?")) return;
-
         document.getElementById('sync-spinner').classList.remove('hidden');
         await api({ action: 'delete_semana', semana_id: state.semanaActual }, true);
         await syncData();
