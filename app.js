@@ -1,4 +1,5 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbxB5nzfylvc_Vp7OV21qUv8yLCFuTOKyOHkKsNKvtSmgSZW80KHJ0AxL4FFrBOxzYY/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbxB5nzfylvc_Vp7OV21qUv8yLCFuTOKyOHkKsNKvtSmgSZW80KHJ0AxL4FFrBOxzYY/exec
+"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
@@ -55,8 +56,11 @@ async function syncData() {
     let activa = state.semanas.find(s => s.Estado === 'Activa');
     state.semanaActual = activa ? activa.Semana_ID : null;
     
+    // LIMPIEZA TOTAL DE VISTA PAGOS AL SINCRONIZAR
+    const resPagos = document.getElementById('resultados-pagos');
+    if(resPagos) resPagos.classList.add('hidden');
+    
     if (activa) {
-        // LÓGICA GLOBAL: Si hay fechas confirmadas se bloquea, si no, se desbloquea para todos y se limpia.
         if(activa.Fecha_Inicio && activa.Fecha_Fin) {
             const fIn = typeof activa.Fecha_Inicio === 'string' ? activa.Fecha_Inicio.substring(0,10) : new Date(activa.Fecha_Inicio).toISOString().substring(0,10);
             const fFin = typeof activa.Fecha_Fin === 'string' ? activa.Fecha_Fin.substring(0,10) : new Date(activa.Fecha_Fin).toISOString().substring(0,10);
@@ -69,15 +73,13 @@ async function syncData() {
             document.getElementById('plan-fecha').min = fIn;
             document.getElementById('plan-fecha').max = fFin;
         } else {
-            // Se reinicia el filtro local si la semana es nueva (tras Eliminar o Cerrar)
+            // Semana nueva o vacía
             document.getElementById('filtro-inicio').value = '';
             document.getElementById('filtro-fin').value = '';
             document.getElementById('filtro-editable').classList.remove('hidden');
             document.getElementById('filtro-bloqueado').classList.add('hidden');
             document.getElementById('plan-fecha').removeAttribute('min');
             document.getElementById('plan-fecha').removeAttribute('max');
-            // SE LIMPIA LA VISTA PAGOS EN TODOS LOS EQUIPOS
-            if(document.getElementById('resultados-pagos')) document.getElementById('resultados-pagos').classList.add('hidden');
         }
 
         try {
@@ -307,26 +309,31 @@ function renderMercado() {
             const isComprado = a.Estado === 'Comprado';
             const disableInput = (isBlocked || state.vistaAgrupada) ? 'disabled' : '';
             const txtUnidad = a.Origen === 'Agrupación' ? '(Total)' : `(${a.Cantidad || 1} ${a.Unidad})`; 
-            const commentHtml = a.Comentario ? `<p class="text-[9px] italic text-blue-500 mt-1 font-bold">"${a.Comentario}"</p>` : '';
+            const commentHtml = a.Comentario ? `<p class="text-[9px] italic text-blue-500 font-bold mt-0.5">"${a.Comentario}"</p>` : '';
             
+            // REDISEÑO: Colocando el nombre y el checkbox en su propia línea, arriba de los selects.
             html += `
-            <div id="row-${a.ID_Item}" class="flex flex-wrap gap-2 items-center p-2 border-b border-gray-100 last:border-0 bg-gray-50 rounded">
-                <input type="checkbox" class="chk-estado w-4 h-4 accent-blue-600" ${isComprado||isBlocked ? 'checked' : ''} ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
-                <div class="flex-1 flex flex-col min-w-0">
-                    <span class="font-bold text-xs truncate ${isBlocked ? 'line-through text-gray-400' : 'text-gray-800'}">${a.Articulo} <span class="font-normal text-blue-600">${txtUnidad}</span></span>
-                    ${commentHtml}
+            <div id="row-${a.ID_Item}" class="flex flex-col gap-1 p-2 border-b border-gray-100 last:border-0 bg-gray-50 rounded">
+                <div class="flex gap-2 items-start">
+                    <input type="checkbox" class="chk-estado w-4 h-4 accent-blue-600 mt-0.5 shrink-0" ${isComprado||isBlocked ? 'checked' : ''} ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
+                    <div class="flex flex-col w-full">
+                        <span class="font-bold text-xs ${isBlocked ? 'line-through text-gray-400' : 'text-gray-800'} leading-tight">${a.Articulo} <span class="font-normal text-blue-600">${txtUnidad}</span></span>
+                        ${commentHtml}
+                    </div>
                 </div>
-                <select class="sel-para border p-1 text-[10px] rounded font-bold text-gray-700 outline-none" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
-                    <option value="Ambos" ${a.Para==='Ambos'?'selected':''}>Para: Ambos</option>
-                    <option value="Carlos" ${a.Para==='Carlos'?'selected':''}>Para: Carlos</option>
-                    <option value="Daniel" ${a.Para==='Daniel'?'selected':''}>Para: Daniel</option>
-                </select>
-                <select class="sel-quien border p-1 text-[10px] rounded font-bold text-gray-700 outline-none" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
-                    <option value="Pendiente" ${a.Quien_Pago==='Pendiente'?'selected':''}>Pago: Pndte.</option>
-                    <option value="Carlos" ${a.Quien_Pago==='Carlos'?'selected':''}>Pago: Carlos</option>
-                    <option value="Daniel" ${a.Quien_Pago==='Daniel'?'selected':''}>Pago: Daniel</option>
-                </select>
-                <input type="number" class="inp-precio border border-gray-300 p-1 text-[10px] w-14 rounded text-center font-bold text-gray-800 outline-none" placeholder="S/" value="${a.Precio||''}" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
+                <div class="flex gap-1 justify-end items-center pl-6">
+                    <select class="sel-para border p-1 text-[10px] rounded font-bold text-gray-700 outline-none w-1/3" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
+                        <option value="Ambos" ${a.Para==='Ambos'?'selected':''}>Para: Ambos</option>
+                        <option value="Carlos" ${a.Para==='Carlos'?'selected':''}>Para: Carlos</option>
+                        <option value="Daniel" ${a.Para==='Daniel'?'selected':''}>Para: Daniel</option>
+                    </select>
+                    <select class="sel-quien border p-1 text-[10px] rounded font-bold text-gray-700 outline-none w-1/3" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
+                        <option value="Pendiente" ${a.Quien_Pago==='Pendiente'?'selected':''}>Pago: Pndte.</option>
+                        <option value="Carlos" ${a.Quien_Pago==='Carlos'?'selected':''}>Pago: Carlos</option>
+                        <option value="Daniel" ${a.Quien_Pago==='Daniel'?'selected':''}>Pago: Daniel</option>
+                    </select>
+                    <input type="number" class="inp-precio border border-gray-300 p-1 text-[10px] w-1/3 rounded text-center font-bold text-gray-800 outline-none" placeholder="S/" value="${a.Precio||''}" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
+                </div>
             </div>`;
         });
         html += `</div></div>`;
@@ -336,6 +343,25 @@ function renderMercado() {
 
 // ================= CONTROLADOR PRINCIPAL =================
 const app = {
+    // BOTÓN DE SINCRONIZACIÓN CON TOAST Y ANIMACIÓN
+    ejecutarSincronizacion: async (btnElement) => {
+        const txtOriginal = btnElement.innerHTML;
+        btnElement.innerHTML = '🔄 Sincronizando...';
+        btnElement.disabled = true;
+        
+        await syncData();
+        
+        btnElement.innerHTML = txtOriginal;
+        btnElement.disabled = false;
+
+        // Mostrar Toast
+        const toast = document.getElementById('toast-sincronizado');
+        const hora = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        toast.innerText = `✅ Sincronizado: ${hora}`;
+        toast.classList.remove('hidden');
+        setTimeout(() => { toast.classList.add('hidden'); }, 3000);
+    },
+
     setFiltroComprador: (val) => { state.filtroComprador = val; renderMercado(); },
     setEncargadoCat: (cat, val) => { state.encargadosCategorias[cat] = val; renderMercado(); },
     
@@ -506,12 +532,12 @@ const app = {
         if(!confirm("⚠️ PELIGRO: ¿Estás seguro que deseas ELIMINAR TODA LA SEMANA ACTUAL?\n\nEsto borrará todo el plan programado y todo el mercado de la semana activa. Esta acción no se puede deshacer.")) return;
         if(!confirm("¿ÚLTIMA ADVERTENCIA: Confirmas eliminar la semana completa?")) return;
         
-        // Limpiamos la vista inmediatamente en el equipo que ejecuta la acción
         document.getElementById('filtro-inicio').value = '';
         document.getElementById('filtro-fin').value = '';
         document.getElementById('plan-fecha').value = '';
         app.modificarSemana();
-        document.getElementById('resultados-pagos').classList.add('hidden');
+        
+        if(document.getElementById('resultados-pagos')) document.getElementById('resultados-pagos').classList.add('hidden');
         
         document.getElementById('sync-spinner').classList.remove('hidden');
         await api({ action: 'delete_semana', semana_id: state.semanaActual }, true);
@@ -548,7 +574,7 @@ const app = {
         const item = state.mercado.find(m => m.ID_Item === id);
         if(item) { item.Para = para; item.Quien_Pago = quien; item.Precio = row.querySelector('.inp-precio').value; item.Estado = estado; }
 
-        const textoArticulo = row.querySelector('.flex-1 span');
+        const textoArticulo = row.querySelector('.flex flex-col w-full span');
         if (estado === 'Comprado_Bloqueado') { textoArticulo.classList.add('line-through', 'text-gray-400'); textoArticulo.classList.remove('text-gray-800'); } 
         else { textoArticulo.classList.remove('line-through', 'text-gray-400'); textoArticulo.classList.add('text-gray-800'); }
         api({ action: 'update_item', data: { id, para, quien_pago: quien, precio: item.Precio, estado } }, true); 
@@ -629,7 +655,7 @@ const app = {
         let debeCarlos = (gastoAmbos / 2) + gastoCarlos;
         let debeDaniel = (gastoAmbos / 2) + gastoDaniel;
 
-        const rangoMsg = (fIn || fFin) ? `Filtro aplicado: ${fIn||'Inicio'} al ${fFin||'Fin'}` : "Toda la semana";
+        const rangoMsg = `Periodo: ${formatearFechaAmigable(fIn)} al ${formatearFechaAmigable(fFin)}`;
         document.getElementById('pagos-rango-fechas').innerText = rangoMsg;
 
         document.getElementById('pagos-detalle').innerHTML = `
@@ -686,12 +712,11 @@ const app = {
     cerrarSemana: async () => {
         if(!confirm("¿Seguro que deseas cerrar la semana? Esto congelará los gastos y limpiará el mercado para iniciar una nueva semana.")) return;
         
-        // Limpieza visual inmediata en el equipo que ejecuta la acción
         document.getElementById('filtro-inicio').value = '';
         document.getElementById('filtro-fin').value = '';
         document.getElementById('plan-fecha').value = '';
         app.modificarSemana();
-        document.getElementById('resultados-pagos').classList.add('hidden');
+        if(document.getElementById('resultados-pagos')) document.getElementById('resultados-pagos').classList.add('hidden');
         
         document.getElementById('sync-spinner').classList.remove('hidden');
         await api({ action: 'cerrar_semana', semana_id: state.semanaActual, nueva_semana_id: "SEM-" + Date.now() });
