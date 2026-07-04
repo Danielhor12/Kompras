@@ -25,19 +25,15 @@
 
         <main class="flex-1 overflow-y-auto p-4 pb-24">
             <section id="view-recetario" class="hidden space-y-4">
-                <button onclick="app.abrirNuevaReceta()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow">+ Nuevo Plato</button>
+                <button onclick="app.abrirNuevaReceta()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow mb-2">+ Nuevo Plato</button>
                 <div id="lista-recetario" class="space-y-3"></div>
             </section>
 
             <section id="view-plan" class="hidden space-y-4">
-                <!-- Sincronizar en Plan -->
                 <button onclick="syncData()" class="w-full bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm mb-2">🔄 Sincronizar Datos</button>
                 
-                <!-- Panel de Filtro Fijo -->
                 <div class="bg-gray-200 p-3 rounded-xl shadow-sm border border-gray-300">
                     <h3 class="font-bold mb-2 text-gray-800 text-sm border-b border-gray-300 pb-1">Filtro de la Semana</h3>
-                    
-                    <!-- Estado Editable -->
                     <div id="filtro-editable" class="flex flex-col gap-2 mt-2">
                         <div class="flex gap-2">
                             <div class="w-1/2">
@@ -52,7 +48,6 @@
                         <button onclick="app.confirmarSemana()" class="w-full bg-blue-600 text-white font-bold py-2 rounded text-xs shadow-sm hover:bg-blue-700">Confirmar Semana</button>
                     </div>
 
-                    <!-- Estado Bloqueado -->
                     <div id="filtro-bloqueado" class="hidden flex flex-col items-center bg-blue-50 p-3 rounded border border-blue-200 mt-2">
                         <span class="text-[10px] text-blue-800 font-bold mb-1 uppercase tracking-wider">Semana Activa Fijada:</span>
                         <span id="txt-rango-fijo" class="font-black text-blue-900 text-sm mb-3"></span>
@@ -74,8 +69,20 @@
             <section id="view-mercado" class="hidden space-y-4">
                 <div class="flex gap-2 mb-2">
                     <button onclick="app.abrirModalManual()" class="w-1/2 border-2 border-dashed border-gray-400 text-gray-600 font-bold py-2 rounded-lg bg-white">+ Manual</button>
-                    <button onclick="syncData()" class="w-1/2 bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm">🔄 Sincronizar</button>
+                    <button onclick="syncData()" class="w-1/4 bg-blue-100 text-blue-700 border border-blue-200 font-bold py-2 rounded-lg shadow-sm">🔄</button>
+                    <button onclick="app.agruparMercado()" class="w-1/4 bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold py-2 rounded-lg shadow-sm">📦 Unir</button>
                 </div>
+
+                <!-- NUEVO: Filtro de Comprador para Supermercado -->
+                <div class="bg-white p-2 rounded-xl border border-gray-200 shadow-sm mb-3 flex flex-col items-center">
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Mostrar Lista De:</span>
+                    <div class="flex gap-2 w-full">
+                        <button id="btn-comp-Todos" onclick="app.setFiltroComprador('Todos')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg border-2 border-gray-800 bg-gray-800 text-white">Ambos</button>
+                        <button id="btn-comp-Carlos" onclick="app.setFiltroComprador('Carlos')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg border-2 border-transparent bg-gray-100 text-gray-600">Carlos</button>
+                        <button id="btn-comp-Daniel" onclick="app.setFiltroComprador('Daniel')" class="w-1/3 py-1.5 text-xs font-bold rounded-lg border-2 border-transparent bg-gray-100 text-gray-600">Daniel</button>
+                    </div>
+                </div>
+
                 <div id="lista-mercado"></div>
             </section>
 
@@ -130,12 +137,12 @@
         </nav>
     </div>
 
-    <!-- MODAL DE ÉXITO (NUEVO) -->
+    <!-- MODAL DE ÉXITO -->
     <div id="modal-exito" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
         <div class="bg-white w-full max-w-sm p-6 rounded-xl text-center border-t-4 border-green-500 shadow-2xl">
             <div class="text-5xl mb-3">✅</div>
             <h2 class="font-black text-xl text-gray-800 mb-2">¡Semana Confirmada!</h2>
-            <p class="text-xs text-gray-600 mb-6">El rango de fechas se ha sincronizado correctamente. Tu pareja verá los mismos filtros en su aplicación.</p>
+            <p class="text-xs text-gray-600 mb-6">El rango de fechas se ha sincronizado correctamente.</p>
             <button onclick="ui.toggleModal('modal-exito')" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 shadow-md">Entendido</button>
         </div>
     </div>
