@@ -56,7 +56,7 @@ async function syncData() {
     state.semanaActual = activa ? activa.Semana_ID : null;
     
     if (activa) {
-        // LÓGICA GLOBAL: Si hay fechas confirmadas se bloquea, si no, se desbloquea para todos.
+        // LÓGICA GLOBAL: Si hay fechas confirmadas se bloquea, si no, se desbloquea para todos y se limpia.
         if(activa.Fecha_Inicio && activa.Fecha_Fin) {
             const fIn = typeof activa.Fecha_Inicio === 'string' ? activa.Fecha_Inicio.substring(0,10) : new Date(activa.Fecha_Inicio).toISOString().substring(0,10);
             const fFin = typeof activa.Fecha_Fin === 'string' ? activa.Fecha_Fin.substring(0,10) : new Date(activa.Fecha_Fin).toISOString().substring(0,10);
@@ -69,13 +69,15 @@ async function syncData() {
             document.getElementById('plan-fecha').min = fIn;
             document.getElementById('plan-fecha').max = fFin;
         } else {
-            // Si la base de datos dice que está vacío (por ej: tras eliminar semana), se reinicia el filtro local
+            // Se reinicia el filtro local si la semana es nueva (tras Eliminar o Cerrar)
             document.getElementById('filtro-inicio').value = '';
             document.getElementById('filtro-fin').value = '';
             document.getElementById('filtro-editable').classList.remove('hidden');
             document.getElementById('filtro-bloqueado').classList.add('hidden');
             document.getElementById('plan-fecha').removeAttribute('min');
             document.getElementById('plan-fecha').removeAttribute('max');
+            // SE LIMPIA LA VISTA PAGOS EN TODOS LOS EQUIPOS
+            if(document.getElementById('resultados-pagos')) document.getElementById('resultados-pagos').classList.add('hidden');
         }
 
         try {
@@ -500,15 +502,18 @@ const app = {
         renderPlan(); renderMercado(); api({ action: 'delete_plan', plan_id: planID }, true);
     },
     
-    // ELIMINAR SEMANA (Cierra la vista Pagos y resetea inputs)
     eliminarSemanaActual: async () => {
         if(!confirm("⚠️ PELIGRO: ¿Estás seguro que deseas ELIMINAR TODA LA SEMANA ACTUAL?\n\nEsto borrará todo el plan programado y todo el mercado de la semana activa. Esta acción no se puede deshacer.")) return;
         if(!confirm("¿ÚLTIMA ADVERTENCIA: Confirmas eliminar la semana completa?")) return;
         
-        document.getElementById('sync-spinner').classList.remove('hidden');
-        
+        // Limpiamos la vista inmediatamente en el equipo que ejecuta la acción
+        document.getElementById('filtro-inicio').value = '';
+        document.getElementById('filtro-fin').value = '';
+        document.getElementById('plan-fecha').value = '';
+        app.modificarSemana();
         document.getElementById('resultados-pagos').classList.add('hidden');
         
+        document.getElementById('sync-spinner').classList.remove('hidden');
         await api({ action: 'delete_semana', semana_id: state.semanaActual }, true);
         await syncData();
     },
@@ -679,10 +684,18 @@ const app = {
     },
 
     cerrarSemana: async () => {
-        if(!confirm("¿Seguro que deseas cerrar la semana? Esto congelará los gastos y limpiará el mercado.")) return;
-        await api({ action: 'cerrar_semana', semana_id: state.semanaActual, nueva_semana_id: "SEM-" + Date.now() });
+        if(!confirm("¿Seguro que deseas cerrar la semana? Esto congelará los gastos y limpiará el mercado para iniciar una nueva semana.")) return;
+        
+        // Limpieza visual inmediata en el equipo que ejecuta la acción
+        document.getElementById('filtro-inicio').value = '';
+        document.getElementById('filtro-fin').value = '';
+        document.getElementById('plan-fecha').value = '';
+        app.modificarSemana();
         document.getElementById('resultados-pagos').classList.add('hidden');
-        syncData();
+        
+        document.getElementById('sync-spinner').classList.remove('hidden');
+        await api({ action: 'cerrar_semana', semana_id: state.semanaActual, nueva_semana_id: "SEM-" + Date.now() });
+        await syncData();
     },
 
     generarReporteHistorico: () => {
