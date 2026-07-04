@@ -1,5 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwBwB3KnOLZ_8g_eH94AnrEE10yVQA7bRZOLTtEpTc7EtLuhL-XvTqfKrSCnx-zs1A/exec
-"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbwBwB3KnOLZ_8g_eH94AnrEE10yVQA7bRZOLTtEpTc7EtLuhL-XvTqfKrSCnx-zs1A/exec"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
