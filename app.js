@@ -1,8 +1,10 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwone03rRJnwlysrMgpHhv6iX-MCZCOfUuPiwCxK_uTqH59IvpfOfqFq8Ug2tt0hMM/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbwDYsBClWoDqzAfzO1evA0L-xTW_g5k3eiZYJITWdbElptG0W5Rc-vy_uxwUgRvkNw/exec"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
-    semanaActual: null, tempIngredientes: [], editandoPlatoID: null, tempPlanMeta: null
+    semanaActual: null, tempIngredientes: [], editandoPlatoID: null, tempPlanMeta: null,
+    filtroComprador: 'Todos', // "Todos", "Carlos", "Daniel"
+    encargadosCategorias: {} // Guarda quién compra cada categoría localmente
 };
 
 const auth = {
@@ -45,11 +47,13 @@ async function api(payload, silent = false) {
 async function syncData() {
     const data = await api({ action: 'sync' }, true);
     if(!data) return;
-    state = {...state, ...data};
+    
+    // Al sincronizar, reiniciamos el filtro de comprador
+    state = {...state, ...data, filtroComprador: 'Todos', encargadosCategorias: {}};
+    
     let activa = state.semanas.find(s => s.Estado === 'Activa');
     state.semanaActual = activa ? activa.Semana_ID : null;
     
-    // Auto-aplicar las fechas bloqueadas desde la BD
     if(activa && activa.Fecha_Inicio && activa.Fecha_Fin) {
         const fIn = typeof activa.Fecha_Inicio === 'string' ? activa.Fecha_Inicio.substring(0,10) : new Date(activa.Fecha_Inicio).toISOString().substring(0,10);
         const fFin = typeof activa.Fecha_Fin === 'string' ? activa.Fecha_Fin.substring(0,10) : new Date(activa.Fecha_Fin).toISOString().substring(0,10);
@@ -101,21 +105,23 @@ function renderRecetario() {
         const ings = JSON.parse(r.Ingredientes_JSON || '[]');
         return `
         <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
-            <div class="flex justify-between items-start mb-2">
-                <h4 class="font-bold text-gray-800 text-lg">${r.Nombre}</h4>
-                <div class="flex gap-2">
-                    <button onclick="app.abrirEditarReceta('${r.ID_Plato}')" class="text-blue-500 text-xs font-bold bg-blue-50 px-2 py-1 rounded shadow-sm">Editar</button>
-                    <button onclick="app.eliminarReceta('${r.ID_Plato}')" class="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded shadow-sm">Eliminar</button>
+            <div class="flex justify-between items-center mb-1">
+                <h4 class="font-bold text-gray-800 text-lg flex-1">${r.Nombre}</h4>
+                <div class="flex gap-1">
+                    <button onclick="document.getElementById('det-${r.ID_Plato}').classList.toggle('hidden')" class="text-gray-600 text-xs font-bold bg-gray-100 px-2 py-1 rounded shadow-sm hover:bg-gray-200">Detalle</button>
+                    <button onclick="app.abrirEditarReceta('${r.ID_Plato}')" class="text-blue-500 text-xs font-bold bg-blue-50 px-2 py-1 rounded shadow-sm hover:bg-blue-100">✏️</button>
+                    <button onclick="app.eliminarReceta('${r.ID_Plato}')" class="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded shadow-sm hover:bg-red-100">X</button>
                 </div>
             </div>
-            <div class="text-xs bg-gray-50 p-2 rounded text-gray-600 divide-y divide-gray-200">
+            
+            <div id="det-${r.ID_Plato}" class="hidden text-xs bg-gray-50 p-2 rounded text-gray-600 divide-y divide-gray-200 mt-2 border border-gray-100">
                 ${ings.map(i => `
                 <div class="py-1 flex flex-col justify-center">
                     <div class="flex justify-between items-center">
-                        <span><span class="font-bold">${i.cantidad||1} ${i.unidad}</span> ${i.articulo}</span> 
-                        <span class="text-gray-400 text-[10px] font-bold uppercase">Para: ${i.para} | Pago: ${i.quien_pago}</span>
+                        <span><span class="font-bold text-blue-600">${i.cantidad||1} ${i.unidad}</span> ${i.articulo}</span> 
+                        <span class="text-gray-400 text-[9px] font-bold uppercase">Para: ${i.para} | Pago: ${i.quien_pago}</span>
                     </div>
-                    ${i.comentario ? `<p class="text-[9px] italic text-blue-500 mt-1">"${i.comentario}"</p>` : ''}
+                    ${i.comentario ? `<p class="text-[9px] italic text-gray-500 mt-0.5">"${i.comentario}"</p>` : ''}
                 </div>`).join('')}
             </div>
         </div>`;
@@ -168,6 +174,22 @@ function renderPlan() {
 }
 
 function renderMercado() {
+    // Actualizar botones de filtro
+    ['Todos', 'Carlos', 'Daniel'].forEach(v => {
+        const btn = document.getElementById(`btn-comp-${v}`);
+        if(btn) {
+            if(state.filtroComprador === v) {
+                btn.classList.replace('bg-gray-100', 'bg-gray-800');
+                btn.classList.replace('text-gray-600', 'text-white');
+                btn.classList.replace('border-transparent', 'border-gray-800');
+            } else {
+                btn.classList.replace('bg-gray-800', 'bg-gray-100');
+                btn.classList.replace('text-white', 'text-gray-600');
+                btn.classList.replace('border-gray-800', 'border-transparent');
+            }
+        }
+    });
+
     const fInicio = document.getElementById('filtro-inicio').value;
     const fFin = document.getElementById('filtro-fin').value;
     let items = state.mercado.filter(m => m.Semana_ID === state.semanaActual);
@@ -192,6 +214,13 @@ function renderMercado() {
     if(items.length === 0) html += '<p class="text-center text-gray-400 mt-6 font-bold">No hay compras para estas fechas.</p>';
     
     for (const [cat, arts] of Object.entries(agrupado)) {
+        
+        // Verificamos si esta categoría debe mostrarse según el filtro de comprador
+        let encargado = state.encargadosCategorias[cat] || 'Todos';
+        if(state.filtroComprador !== 'Todos' && encargado !== state.filtroComprador) {
+            continue; // Saltamos esta categoría porque no le toca a este comprador
+        }
+
         const itemsPendientes = arts.filter(a => a.Estado !== 'Comprado_Bloqueado' && a.Origen !== 'Agrupación');
         const botonCerrar = itemsPendientes.length > 0 
             ? `<button onclick="app.cerrarCategoria('${cat}')" class="bg-red-500 px-3 py-1 rounded text-xs font-bold text-white hover:bg-red-600 shadow-sm">Cerrar</button>`
@@ -199,12 +228,21 @@ function renderMercado() {
 
         html += `
         <div class="bg-white rounded-xl shadow-sm mb-4 overflow-hidden border border-gray-200">
-            <div id="cat-head-${cat}" class="bg-gray-800 text-white p-2 flex flex-wrap gap-2 items-center justify-between">
-                <h4 class="font-bold uppercase text-xs w-full mb-1">${cat}</h4>
-                <select class="cat-para text-black text-[10px] p-1 rounded font-bold outline-none"><option value="Ambos">Para: Ambos</option><option value="Carlos">Para: Carlos</option><option value="Daniel">Para: Daniel</option></select>
-                <select class="cat-quien text-black text-[10px] p-1 rounded font-bold outline-none"><option value="Pendiente">Pago: Pndte.</option><option value="Carlos">Pago: Carlos</option><option value="Daniel">Pago: Daniel</option></select>
-                <input type="number" class="cat-total text-black text-[10px] p-1 rounded font-bold w-16 text-center outline-none" placeholder="Costo S/">
-                ${botonCerrar}
+            <div id="cat-head-${cat}" class="bg-gray-800 text-white p-2 flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                    <h4 class="font-bold uppercase text-xs">${cat}</h4>
+                    <select onchange="app.setEncargadoCat('${cat}', this.value)" class="text-black text-[10px] p-1 rounded font-bold outline-none border border-gray-300">
+                        <option value="Todos" ${encargado === 'Todos' ? 'selected' : ''}>🛒 Va a comprar: Ambos</option>
+                        <option value="Carlos" ${encargado === 'Carlos' ? 'selected' : ''}>🛒 Va a comprar: Carlos</option>
+                        <option value="Daniel" ${encargado === 'Daniel' ? 'selected' : ''}>🛒 Va a comprar: Daniel</option>
+                    </select>
+                </div>
+                <div class="flex gap-2 items-center justify-between border-t border-gray-600 pt-2">
+                    <select class="cat-para text-black text-[10px] p-1 rounded font-bold outline-none"><option value="Ambos">Para: Ambos</option><option value="Carlos">Para: Carlos</option><option value="Daniel">Para: Daniel</option></select>
+                    <select class="cat-quien text-black text-[10px] p-1 rounded font-bold outline-none"><option value="Pendiente">Pago: Pndte.</option><option value="Carlos">Pago: Carlos</option><option value="Daniel">Pago: Daniel</option></select>
+                    <input type="number" class="cat-total text-black text-[10px] p-1 rounded font-bold w-16 text-center outline-none" placeholder="Costo S/">
+                    ${botonCerrar}
+                </div>
             </div>
             <div class="p-2 space-y-2">
         `;
@@ -217,8 +255,8 @@ function renderMercado() {
             html += `
             <div id="row-${a.ID_Item}" class="flex flex-wrap gap-2 items-center p-2 border-b border-gray-100 last:border-0 bg-gray-50 rounded">
                 <input type="checkbox" class="chk-estado w-4 h-4 accent-blue-600" ${isComprado||isBlocked ? 'checked' : ''} ${isBlocked ? 'disabled' : ''} onchange="app.updateItem('${a.ID_Item}')">
-                <div class="flex-1 flex flex-col">
-                    <span class="font-bold text-xs ${isBlocked ? 'line-through text-gray-400' : 'text-gray-800'}">${a.Articulo} <span class="font-normal text-blue-600">${txtUnidad}</span></span>
+                <div class="flex-1 flex flex-col min-w-0">
+                    <span class="font-bold text-xs truncate ${isBlocked ? 'line-through text-gray-400' : 'text-gray-800'}">${a.Articulo} <span class="font-normal text-blue-600">${txtUnidad}</span></span>
                     ${commentHtml}
                 </div>
                 <select class="sel-para border p-1 text-[10px] rounded font-bold text-gray-700 outline-none" ${isBlocked ? 'disabled' : ''} onchange="app.updateItem('${a.ID_Item}')">
@@ -241,22 +279,27 @@ function renderMercado() {
 
 // ================= CONTROLADOR PRINCIPAL =================
 const app = {
-    // NUEVO: Funciones para Confirmar y Modificar la Semana
+    // FILTROS COMPRADOR CATEGORÍA
+    setFiltroComprador: (val) => {
+        state.filtroComprador = val;
+        renderMercado();
+    },
+    setEncargadoCat: (cat, val) => {
+        state.encargadosCategorias[cat] = val;
+        renderMercado();
+    },
+
     confirmarSemana: () => {
         const fIn = document.getElementById('filtro-inicio').value;
         const fFin = document.getElementById('filtro-fin').value;
-        
         if(!fIn || !fFin) return alert("Por favor selecciona la Fecha de Inicio y la Fecha de Fin.");
 
-        // Bloquear UI
         document.getElementById('filtro-editable').classList.add('hidden');
         document.getElementById('filtro-bloqueado').classList.remove('hidden');
         document.getElementById('txt-rango-fijo').innerText = `${formatearFechaAmigable(fIn)} al ${formatearFechaAmigable(fFin)}`;
 
         app.aplicarFiltroGlobal();
         ui.toggleModal('modal-exito');
-
-        // Guardar en BD para que el otro celular lo sincronice
         api({ action: 'update_semana_dates', semana_id: state.semanaActual, fInicio: fIn, fFin: fFin }, true);
     },
 
@@ -390,9 +433,16 @@ const app = {
         state.plan = state.plan.filter(p => p.Plan_ID !== planID); state.mercado = state.mercado.filter(m => m.Plan_ID !== planID);
         renderPlan(); renderMercado(); api({ action: 'delete_plan', plan_id: planID }, true);
     },
+    
+    // Eliminación Total de Semana limpia y vuelve a estado inicial
     eliminarSemanaActual: async () => {
         if(!confirm("⚠️ PELIGRO: ¿Estás seguro que deseas ELIMINAR TODA LA SEMANA ACTUAL?\n\nEsto borrará todo el plan programado y todo el mercado de la semana activa. Esta acción no se puede deshacer.")) return;
         if(!confirm("¿ÚLTIMA ADVERTENCIA: Confirmas eliminar la semana completa?")) return;
+        
+        document.getElementById('filtro-inicio').value = '';
+        document.getElementById('filtro-fin').value = '';
+        app.modificarSemana();
+        
         document.getElementById('sync-spinner').classList.remove('hidden');
         await api({ action: 'delete_semana', semana_id: state.semanaActual }, true);
         await syncData();
@@ -434,6 +484,14 @@ const app = {
         api({ action: 'update_item', data: { id, para, quien_pago: quien, precio: item.Precio, estado } }, true); 
     },
     
+    // AGRUPAR MERCADO
+    agruparMercado: async () => {
+        if(!confirm("📦 ¿Agrupar productos idénticos?\n\nEsto buscará artículos que tengan el mismo Nombre, Categoría y Unidad y sumará sus cantidades en un solo renglón para que compres más rápido.")) return;
+        document.getElementById('sync-spinner').classList.remove('hidden');
+        await api({ action: 'agrupar_mercado', semana_id: state.semanaActual }, true);
+        await syncData();
+    },
+
     cerrarCategoria: (cat) => {
         const cont = document.getElementById(`cat-head-${cat}`);
         const totalInput = parseFloat(cont.querySelector('.cat-total').value) || 0;
