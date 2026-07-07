@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbxB5nzfylvc_Vp7OV21qUv8yLCFuTOKyOHkKsNKvtSmgSZW80KHJ0AxL4FFrBOxzYY/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbyio4q6-kLVYnvQzJ904KnPHmCSLyvi7iJfeMSwCY_XsghKkKJSAIUykOwQ4K0do6Q/exec"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
@@ -9,7 +9,6 @@ let state = {
     vistaAgrupada: false 
 };
 
-// Íconos para los tipos de comida
 const iconosComida = { Desayuno: '☕', Almuerzo: '🍲', Cena: '🌙', Snack: '🍫', Merienda: '🥪' };
 const ordenComida = ['Desayuno', 'Almuerzo', 'Cena', 'Snack', 'Merienda'];
 
@@ -94,7 +93,8 @@ async function syncData() {
     }
 
     renderAll();
-    app.filtrarPlatosPorTipo(); // Inicializa el desplegable de plan
+    actualizarDiccionario(); // Carga las sugerencias guardadas
+    app.filtrarPlatosPorTipo();
 }
 
 const ui = {
@@ -128,14 +128,10 @@ function formatearFechaAmigable(fechaStr) {
 }
 
 // ================= RENDERIZADO =================
-
-// NUEVO: Recetario agrupado por Tipo
 function renderRecetario() {
     const list = document.getElementById('lista-recetario');
-    
-    // Agrupar recetas por Tipo (o Almuerzo por defecto si son antiguas)
     const agrupado = state.recetario.reduce((acc, r) => {
-        let t = r.Tipo || 'Almuerzo';
+        let t = r.Tipo || r.tipo || 'Almuerzo';
         acc[t] = acc[t] || [];
         acc[t].push(r);
         return acc;
@@ -205,9 +201,8 @@ function renderPlan() {
                 <div class="bg-blue-600 text-white font-bold p-2 text-center capitalize text-sm tracking-wide">${nombreDia}</div>
                 <div class="bg-white p-2 space-y-2">`;
             
-            // Agrupar platos del día por tipo
             const porTipo = platos.reduce((acc, p) => {
-                let t = p.Tipo || 'Almuerzo';
+                let t = p.Tipo || p.tipo || 'Almuerzo';
                 acc[t] = acc[t] || [];
                 acc[t].push(p);
                 return acc;
@@ -224,9 +219,13 @@ function renderPlan() {
                                 <span class="font-bold pr-2 cursor-pointer hover:underline flex-1 truncate" onclick="app.verIngredientesPlan('${p.Plan_ID}', '${p.Nombre_Plato}')">${p.Nombre_Plato} <span class="text-[10px] font-normal text-blue-500">(Ver 🛒)</span></span>
                                 <button onclick="app.eliminarPlan('${p.Plan_ID}')" class="text-red-500 font-bold bg-red-100 px-3 py-1 rounded text-xs hover:bg-red-200 shadow-sm transition">X</button>
                             </div>
-                            <div class="flex items-center gap-2 mt-1">
-                                <span class="text-[10px] text-gray-500 font-bold uppercase">Mover a:</span>
-                                <input type="date" value="${p.Fecha.substring(0,10)}" onchange="app.cambiarFechaPlan('${p.Plan_ID}', this.value)" class="border border-blue-200 p-1 text-[10px] rounded bg-white font-bold text-blue-700 outline-none focus:ring-1 focus:ring-blue-400">
+                            <div class="flex items-center gap-2 mt-1 w-full">
+                                <span class="text-[10px] text-gray-500 font-bold uppercase w-1/4">Día:</span>
+                                <input type="date" value="${p.Fecha.substring(0,10)}" onchange="app.cambiarFechaPlan('${p.Plan_ID}', this.value)" class="border border-blue-200 p-1 text-[10px] rounded bg-white font-bold text-blue-700 outline-none focus:ring-1 focus:ring-blue-400 w-1/4">
+                                <span class="text-[10px] text-gray-500 font-bold uppercase ml-2 w-1/4 text-right pr-1">Tipo:</span>
+                                <select onchange="app.cambiarTipoPlan('${p.Plan_ID}', this.value)" class="border border-blue-200 p-1 text-[10px] rounded bg-white font-bold text-blue-700 outline-none w-1/4">
+                                    ${ordenComida.map(t => `<option value="${t}" ${(p.Tipo || 'Almuerzo') === t ? 'selected' : ''}>${t}</option>`).join('')}
+                                </select>
                             </div>
                         </div>`;
                     });
@@ -274,12 +273,21 @@ function renderMercado() {
     if (state.vistaAgrupada) {
         const agrupadosExactos = {};
         items.forEach(i => {
-            if (i.Origen === 'Agrupación' || i.Estado === 'Comprado_Bloqueado') { agrupadosExactos[i.ID_Item] = i; return; }
+            if (i.Origen === 'Agrupación' || i.Estado === 'Comprado_Bloqueado') { 
+                agrupadosExactos[i.ID_Item] = { ...i, ids: [i.ID_Item] }; 
+                return; 
+            }
             const key = `${i.Articulo.toLowerCase().trim()}|${i.Categoria}|${i.Unidad}|${i.Para}|${i.Quien_Pago}`;
-            if (!agrupadosExactos[key]) { agrupadosExactos[key] = { ...i, Cantidad: parseFloat(i.Cantidad) || 1 }; } 
-            else { agrupadosExactos[key].Cantidad += (parseFloat(i.Cantidad) || 1); }
+            if (!agrupadosExactos[key]) { 
+                agrupadosExactos[key] = { ...i, Cantidad: parseFloat(i.Cantidad) || 1, ids: [i.ID_Item] }; 
+            } else { 
+                agrupadosExactos[key].Cantidad += (parseFloat(i.Cantidad) || 1); 
+                agrupadosExactos[key].ids.push(i.ID_Item); 
+            }
         });
         items = Object.values(agrupadosExactos);
+    } else {
+        items.forEach(i => i.ids = [i.ID_Item]); 
     }
 
     const agrupado = items.reduce((acc, obj) => {
@@ -298,12 +306,12 @@ function renderMercado() {
                     ${state.compradoresConfirmados ? '✏️ Editar' : '✅ Confirmar'}
                 </button>
             </div>
-            <p class="text-[9px] text-indigo-600">${state.compradoresConfirmados ? 'Bloqueado. Las asignaciones de categorías se han enviado al otro celular.' : 'Asigna quién compra cada categoría abajo y presiona Confirmar.'}</p>
+            <p class="text-[9px] text-indigo-600">${state.compradoresConfirmados ? 'Bloqueado. Las asignaciones se han enviado a todos los equipos.' : 'Asigna quién compra cada categoría abajo y presiona Confirmar.'}</p>
         </div>
     `;
 
     if (state.vistaAgrupada) {
-        html += `<div class="bg-orange-100 text-orange-800 text-xs font-bold p-3 text-center mb-3 rounded-lg border border-orange-200 shadow-sm">⚠️ Vista Agrupada Activada.<br>Desune para poder ingresar los precios individualmente.</div>`;
+        html += `<div class="bg-indigo-100 text-indigo-800 text-[11px] font-bold p-3 text-center mb-3 rounded-lg border border-indigo-200 shadow-sm">📦 VISTA AGRUPADA: Puedes ingresar el precio directamente. El "Para" y "Pago" que elijas aquí se aplicará a todos los productos unidos.</div>`;
     }
 
     html += `<div class="bg-blue-50 text-blue-800 font-bold p-3 rounded-lg text-center mb-4 text-xs border border-blue-200 shadow-sm">${infoFiltro}</div>`;
@@ -336,7 +344,7 @@ function renderMercado() {
                 <div class="flex gap-2 items-center justify-between border-t border-gray-600 pt-2">
                     <select class="cat-para text-black text-[10px] p-1 rounded font-bold outline-none"><option value="Ambos">Para: Ambos</option><option value="Carlos">Para: Carlos</option><option value="Daniel">Para: Daniel</option></select>
                     <select class="cat-quien text-black text-[10px] p-1 rounded font-bold outline-none"><option value="Pendiente">Pago: Pndte.</option><option value="Carlos">Pago: Carlos</option><option value="Daniel">Pago: Daniel</option></select>
-                    <input type="number" class="cat-total text-black text-[10px] p-1 rounded font-bold w-16 text-center outline-none" placeholder="Costo S/">
+                    <input type="number" inputmode="decimal" class="cat-total text-black text-[10px] p-1 rounded font-bold w-16 text-center outline-none" placeholder="Costo S/">
                     ${botonCerrar}
                 </div>
             </div>
@@ -345,31 +353,33 @@ function renderMercado() {
         arts.forEach(a => {
             const isBlocked = a.Estado === 'Comprado_Bloqueado';
             const isComprado = a.Estado === 'Comprado';
-            const disableInput = (isBlocked || state.vistaAgrupada) ? 'disabled' : '';
+            const disableInput = isBlocked ? 'disabled' : ''; 
             const txtUnidad = a.Origen === 'Agrupación' ? '(Total)' : `(${a.Cantidad || 1} ${a.Unidad})`; 
             const commentHtml = a.Comentario ? `<p class="text-[9px] italic text-blue-500 font-bold mt-0.5">"${a.Comentario}"</p>` : '';
             
+            const idsData = a.ids ? a.ids.join(',') : a.ID_Item;
+
             html += `
-            <div id="row-${a.ID_Item}" class="flex flex-col gap-1 p-2 border-b border-gray-100 last:border-0 bg-gray-50 rounded">
+            <div id="row-${a.ID_Item}" data-ids="${idsData}" class="flex flex-col gap-1 p-2 border-b border-gray-100 last:border-0 bg-gray-50 rounded">
                 <div class="flex gap-2 items-start">
-                    <input type="checkbox" class="chk-estado w-4 h-4 accent-blue-600 mt-0.5 shrink-0" ${isComprado||isBlocked ? 'checked' : ''} ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
-                    <div class="flex flex-col w-full">
-                        <span class="font-bold text-xs ${isBlocked ? 'line-through text-gray-400' : 'text-gray-800'} leading-tight">${a.Articulo} <span class="font-normal text-blue-600">${txtUnidad}</span></span>
+                    <input type="checkbox" id="chk-${a.ID_Item}" class="chk-estado w-4 h-4 accent-blue-600 mt-0.5 shrink-0" ${isComprado||isBlocked ? 'checked' : ''} ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
+                    <div class="flex flex-col w-full min-w-0">
+                        <span class="font-bold text-xs leading-tight text-articulo ${isBlocked ? 'line-through text-gray-400' : 'text-gray-800'}">${a.Articulo} <span class="font-normal text-blue-600">${txtUnidad}</span></span>
                         ${commentHtml}
                     </div>
                 </div>
                 <div class="flex gap-1 justify-end items-center pl-6">
-                    <select class="sel-para border p-1 text-[10px] rounded font-bold text-gray-700 outline-none w-1/3" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
+                    <select id="sel-para-${a.ID_Item}" class="sel-para border p-1 text-[10px] rounded font-bold text-gray-700 outline-none w-1/3" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
                         <option value="Ambos" ${a.Para==='Ambos'?'selected':''}>Para: Ambos</option>
                         <option value="Carlos" ${a.Para==='Carlos'?'selected':''}>Para: Carlos</option>
                         <option value="Daniel" ${a.Para==='Daniel'?'selected':''}>Para: Daniel</option>
                     </select>
-                    <select class="sel-quien border p-1 text-[10px] rounded font-bold text-gray-700 outline-none w-1/3" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
+                    <select id="sel-quien-${a.ID_Item}" class="sel-quien border p-1 text-[10px] rounded font-bold text-gray-700 outline-none w-1/3" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
                         <option value="Pendiente" ${a.Quien_Pago==='Pendiente'?'selected':''}>Pago: Pndte.</option>
                         <option value="Carlos" ${a.Quien_Pago==='Carlos'?'selected':''}>Pago: Carlos</option>
                         <option value="Daniel" ${a.Quien_Pago==='Daniel'?'selected':''}>Pago: Daniel</option>
                     </select>
-                    <input type="number" class="inp-precio border border-gray-300 p-1 text-[10px] w-1/3 rounded text-center font-bold text-gray-800 outline-none" placeholder="S/" value="${a.Precio||''}" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
+                    <input type="number" inputmode="decimal" id="inp-precio-${a.ID_Item}" class="inp-precio border border-gray-300 p-1 text-[10px] w-1/3 rounded text-center font-bold text-gray-800 outline-none" placeholder="S/" value="${a.Precio||''}" ${disableInput} onchange="app.updateItem('${a.ID_Item}')">
                 </div>
             </div>`;
         });
@@ -380,6 +390,21 @@ function renderMercado() {
 
 // ================= CONTROLADOR PRINCIPAL =================
 const app = {
+    // NUEVA FUNCIÓN: DICCIONARIO INTELIGENTE
+    autocompletarDicc: (prefix) => {
+        const artInput = document.getElementById(`${prefix}-ing-art`) || document.getElementById(`${prefix}-art`);
+        if(!artInput) return;
+        const val = artInput.value.toLowerCase().trim();
+        const match = state.diccionario.find(d => d.Articulo.toLowerCase().trim() === val);
+        
+        if(match) {
+            const catSelect = document.getElementById(`${prefix}-ing-cat`) || document.getElementById(`${prefix}-cat`);
+            const uniSelect = document.getElementById(`${prefix}-ing-uni`) || document.getElementById(`${prefix}-uni`);
+            if(catSelect) catSelect.value = match.Categoria;
+            if(uniSelect) uniSelect.value = match.Unidad;
+        }
+    },
+
     ejecutarSincronizacion: async (btnElement) => {
         const txtOriginal = btnElement.innerHTML;
         btnElement.innerHTML = '🔄 Sincronizando...';
@@ -436,18 +461,22 @@ const app = {
         if(!document.getElementById('view-pagos').classList.contains('hidden')) app.calcularPagos();
     },
 
-    // NUEVA FUNCIÓN: Filtrar platos en el desplegable
     filtrarPlatosPorTipo: () => {
         const tipoSeleccionado = document.getElementById('plan-tipo-comida').value;
         const selectPlato = document.getElementById('plan-plato');
-        
-        const platosFiltrados = state.recetario.filter(r => (r.Tipo || 'Almuerzo') === tipoSeleccionado);
-        
+        const platosFiltrados = state.recetario.filter(r => (r.Tipo || r.tipo || 'Almuerzo') === tipoSeleccionado);
         if (platosFiltrados.length === 0) {
-            selectPlato.innerHTML = '<option value="">No hay platos en esta categoría</option>';
+            selectPlato.innerHTML = '<option value="">No hay platos guardados en esta categoría</option>';
         } else {
             selectPlato.innerHTML = platosFiltrados.map(r => `<option value="${r.ID_Plato}">${r.Nombre}</option>`).join('');
         }
+    },
+
+    cambiarTipoPlan: (planID, nuevoTipo) => {
+        const plan = state.plan.find(p => p.Plan_ID === planID);
+        if(plan) plan.Tipo = nuevoTipo;
+        renderPlan();
+        api({ action: 'update_plan_tipo', plan_id: planID, nuevo_tipo: nuevoTipo }, true);
     },
 
     addIngredienteTemp: (contexto) => {
@@ -505,7 +534,7 @@ const app = {
         state.editandoPlatoID = id; const receta = state.recetario.find(r => r.ID_Plato === id);
         document.getElementById('titulo-modal-receta').innerText = "Editar Receta"; 
         document.getElementById('rec-nombre').value = receta.Nombre;
-        document.getElementById('rec-tipo').value = receta.Tipo || 'Almuerzo';
+        document.getElementById('rec-tipo').value = receta.Tipo || receta.tipo || 'Almuerzo';
         state.tempIngredientes = JSON.parse(receta.Ingredientes_JSON || '[]'); app.renderTempIngredientes('rec'); ui.toggleModal('modal-receta');
     },
     eliminarReceta: (id) => {
@@ -618,20 +647,48 @@ const app = {
     
     updateItem: (id) => {
         const row = document.getElementById(`row-${id}`);
+        const idsStr = row.getAttribute('data-ids');
+        const ids = idsStr ? idsStr.split(',') : [id];
+        
         const para = row.querySelector('.sel-para').value;
         const quien = row.querySelector('.sel-quien').value;
         const precioVal = parseFloat(row.querySelector('.inp-precio').value) || 0;
         let estado = row.querySelector('.chk-estado').checked ? "Comprado" : "Pendiente";
 
-        if (precioVal > 0 && quien !== 'Pendiente' && estado === 'Pendiente') { estado = "Comprado"; row.querySelector('.chk-estado').checked = true; }
+        if ((precioVal > 0 || estado === 'Comprado') && quien === 'Pendiente') {
+            alert("⚠️ ACCIÓN REQUERIDA:\nPara ingresar un costo o marcar como comprado, primero debes seleccionar 'Quién pagó'.");
+            row.querySelector('.inp-precio').value = '';
+            row.querySelector('.chk-estado').checked = false;
+            return;
+        }
 
-        const item = state.mercado.find(m => m.ID_Item === id);
-        if(item) { item.Para = para; item.Quien_Pago = quien; item.Precio = row.querySelector('.inp-precio').value; item.Estado = estado; }
+        if (precioVal > 0 && quien !== 'Pendiente' && estado === 'Pendiente') { 
+            estado = "Comprado"; 
+            row.querySelector('.chk-estado').checked = true; 
+        }
 
-        const textoArticulo = row.querySelector('.flex flex-col w-full span');
-        if (estado === 'Comprado_Bloqueado') { textoArticulo.classList.add('line-through', 'text-gray-400'); textoArticulo.classList.remove('text-gray-800'); } 
-        else { textoArticulo.classList.remove('line-through', 'text-gray-400'); textoArticulo.classList.add('text-gray-800'); }
-        api({ action: 'update_item', data: { id, para, quien_pago: quien, precio: item.Precio, estado } }, true); 
+        const updates = [];
+        ids.forEach((itemId, index) => {
+            const item = state.mercado.find(m => m.ID_Item === itemId);
+            if(item) { 
+                item.Para = para; 
+                item.Quien_Pago = quien; 
+                item.Precio = (index === 0) ? precioVal : 0; 
+                item.Estado = estado; 
+                updates.push({ id: itemId, para, quien_pago: quien, precio: item.Precio, estado });
+            }
+        });
+
+        const textoArticulo = row.querySelector('.text-articulo');
+        if (estado === 'Comprado_Bloqueado') { 
+            textoArticulo.classList.add('line-through', 'text-gray-400'); 
+            textoArticulo.classList.remove('text-gray-800'); 
+        } else { 
+            textoArticulo.classList.remove('line-through', 'text-gray-400'); 
+            textoArticulo.classList.add('text-gray-800'); 
+        }
+        
+        api({ action: 'update_multiple_items', updates: updates }, true); 
     },
     
     cerrarCategoria: (cat) => {
@@ -643,33 +700,70 @@ const app = {
         const itemsCat = state.mercado.filter(m => m.Semana_ID === state.semanaActual && m.Categoria === cat && m.Origen !== "Agrupación" && m.Estado !== "Comprado_Bloqueado");
         if (itemsCat.length === 0) return alert("Esta categoría ya está cerrada.");
 
-        const todosTienenPrecio = itemsCat.length > 0 && itemsCat.every(m => parseFloat(m.Precio) > 0 && m.Quien_Pago !== "Pendiente");
+        let sumaIndividuales = 0;
+        const updatesToSend = [];
+
+        itemsCat.forEach(m => {
+            const domInput = document.getElementById(`inp-precio-${m.ID_Item}`);
+            const domPara = document.getElementById(`sel-para-${m.ID_Item}`);
+            const domQuien = document.getElementById(`sel-quien-${m.ID_Item}`);
+
+            if (domInput) {
+                m.Precio = parseFloat(domInput.value) || 0;
+                m.Para = domPara.value;
+                m.Quien_Pago = domQuien.value;
+                if (m.Precio > 0 && m.Quien_Pago !== 'Pendiente') m.Estado = 'Comprado';
+            }
+            if (m.Precio > 0) sumaIndividuales += m.Precio;
+            updatesToSend.push(m);
+        });
+
+        const todosTienenPrecio = updatesToSend.every(m => parseFloat(m.Precio) > 0 && m.Quien_Pago !== "Pendiente");
 
         if(totalInput === 0 && !todosTienenPrecio) {
             return alert(`Para cerrar la categoría "${cat}" debes:\n\n1. Colocar el Costo Total, Para y Pago en la caja de arriba.\nO\n2. Ingresar el precio y pagador a TODOS los artículos individualmente.`);
         }
         if (totalInput > 0 && quien === 'Pendiente') return alert("Si vas a cerrar por Total de Categoría, debes seleccionar quién lo pagó en el desplegable superior.");
 
+        if (totalInput > 0 && totalInput < sumaIndividuales) {
+            return alert(`El Costo Total (S/ ${totalInput}) no puede ser menor a la suma de los artículos individuales que ya marcaste (S/ ${sumaIndividuales}).`);
+        }
+
         const tipoCierre = totalInput > 0 ? "total" : "individual";
+        const totalRestante = totalInput > 0 ? (totalInput - sumaIndividuales) : 0;
+
         let msg = `¿Seguro que deseas CERRAR la categoría "${cat}"?\n\n`;
-        if (tipoCierre === "total") msg += `Has indicado un Total Global de S/ ${totalInput}. Los precios individuales en esta categoría se volverán 0 para evitar cobrarte doble.`;
-        else msg += `Todos los artículos tienen precio individual. Se bloquearán para proteger la suma y se añadirán al cálculo global.`;
+        if (tipoCierre === "total") {
+            if(sumaIndividuales > 0) msg += `Se respetarán los S/ ${sumaIndividuales} de los artículos individuales.\nEl resto (S/ ${totalRestante.toFixed(2)}) se registrará como total de la categoría.`;
+            else msg += `El total de S/ ${totalInput} se registrará para toda la categoría.`;
+        } else {
+            msg += `Todos los artículos tienen precio individual. Se bloquearán para proteger la suma y entrarán al cálculo global.`;
+        }
 
         if(!confirm(msg)) return;
 
         const fInicio = document.getElementById('filtro-inicio').value;
         const fechaBloqueo = fInicio || new Date().toISOString().substring(0, 10);
 
-        itemsCat.forEach(m => {
-            if(tipoCierre === "total") { m.Para = para; m.Quien_Pago = quien; m.Precio = 0; }
-            m.Estado = "Comprado_Bloqueado";
-        });
+        itemsCat.forEach(m => { m.Estado = "Comprado_Bloqueado"; });
         
-        if (tipoCierre === "total") {
-            state.mercado.push({ ID_Item: "ITM-" + Date.now(), Semana_ID: state.semanaActual, Plan_ID: "", Articulo: "TOTAL " + cat, Categoria: cat, Unidad: "soles", Cantidad: 1, Para: para, Quien_Pago: quien, Precio: totalInput, Estado: "Comprado", Origen: "Agrupación", Fecha: fechaBloqueo, Comentario: "Cierre de categoría" });
+        if (tipoCierre === "total" && totalRestante > 0) {
+            state.mercado.push({ ID_Item: "ITM-" + Date.now(), Semana_ID: state.semanaActual, Plan_ID: "", Articulo: "TOTAL " + cat, Categoria: cat, Unidad: "soles", Cantidad: 1, Para: para, Quien_Pago: quien, Precio: totalRestante, Estado: "Comprado", Origen: "Agrupación", Fecha: fechaBloqueo, Comentario: "Resto de categoría" });
         }
+        
         renderMercado();
-        api({ action: 'cerrar_categoria', semana_id: state.semanaActual, categoria: cat, total: totalInput, para: para, quien_pago: quien, fecha: fechaBloqueo, tipo_cierre: tipoCierre }, true);
+        
+        api({ 
+            action: 'cerrar_categoria_avanzado', 
+            semana_id: state.semanaActual, 
+            categoria: cat, 
+            total_restante: totalRestante, 
+            para: para, 
+            quien_pago: quien, 
+            fecha: fechaBloqueo, 
+            tipo_cierre: tipoCierre,
+            items: updatesToSend.map(i => ({ id: i.ID_Item, para: i.Para, quien: i.Quien_Pago, precio: i.Precio }))
+        }, true);
     },
 
     calcularPagos: () => {
