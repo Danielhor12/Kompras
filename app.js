@@ -767,6 +767,21 @@ const app = {
     },
 
     calcularPagos: () => {
+        // 1. VALIDACIÓN ESTRICTA: Bloqueo por categorías abiertas
+        // Seleccionamos los spans que indican el estado de la categoría (el botón que dice "Cerrar" vs "Cerrado")
+        const botonesCierre = document.querySelectorAll('#lista-mercado button'); 
+        
+        // Verificamos si existe algún botón visible que diga "Cerrar" (lo que significa que la categoría está abierta)
+        const hayCategoriasPendientes = Array.from(botonesCierre).some(btn => 
+            btn.textContent.trim().toLowerCase() === 'cerrar' && !btn.disabled
+        );
+
+        if (hayCategoriasPendientes) {
+            alert("⚠️ ACCIÓN REQUERIDA:\n\nDebes CERRAR todas las categorías en la vista 'Mercado' (asignando costos y pagadores) antes de poder calcular los pagos. Revisa la lista y cierra las categorías pendientes.");
+            return; // Aborta la ejecución
+        }
+
+        // 2. Continúa tu flujo normal de cálculo
         const fIn = document.getElementById('filtro-inicio').value;
         const fFin = document.getElementById('filtro-fin').value;
 
@@ -779,9 +794,10 @@ const app = {
             });
         }
         
+        // Esta validación original tuya ahora actúa como doble seguro
         const pendientes = items.some(i => i.Estado === 'Pendiente' && i.Origen !== 'Agrupación');
         if (pendientes) {
-            return alert("⚠️ Aún tienes artículos pendientes de compra.\n\nPor favor, ingresa sus precios individualmente o cierra la categoría completa en la vista Mercado antes de sacar las cuentas finales.");
+            return alert("⚠️ Aún tienes artículos individuales pendientes de compra.\n\nPor favor, ingresa sus precios o cierra la categoría completa en la vista Mercado antes de sacar las cuentas finales.");
         }
         
         let pagoCarlos = 0, pagoDaniel = 0, gastoAmbos = 0, gastoCarlos = 0, gastoDaniel = 0;
@@ -789,6 +805,7 @@ const app = {
 
         items.forEach(i => {
             let p = parseFloat(i.Precio) || 0;
+            // OJO AQUÍ: Aseguramos que solo entran al cálculo los ítems cerrados/comprados
             if (p > 0 && i.Quien_Pago !== 'Pendiente' && (i.Estado === 'Comprado' || i.Estado === 'Comprado_Bloqueado' || i.Origen === 'Agrupación')) {
                 listaValidos.push(i); 
                 if(i.Quien_Pago === 'Carlos') pagoCarlos += p;
