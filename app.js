@@ -458,7 +458,7 @@ const app = {
             if(similares.length > 0) {
                 sugDiv.innerHTML = similares.map(s => `
                     <div class="p-2 border-b border-gray-100 text-xs cursor-pointer hover:bg-blue-50 text-gray-700 transition" 
-                         onclick="app.seleccionarSugerencia('${prefix}', '${s.item.Articulo}', '${s.item.Categoria}', '${s.item.Unidad}')">
+                         onclick="app.seleccionarSugerencia('${prefix}', '${s.item.Articulo}', '${s.item.Categoria}', '${s.item.Unidad}', false)">
                         ¿Quisiste decir <span class="font-black text-blue-600">${s.item.Articulo}</span>?
                     </div>
                 `).join('') + `<div class="p-1.5 text-[9px] text-gray-400 bg-gray-50 text-center">Ignora esto para registrar como producto nuevo</div>`;
@@ -469,17 +469,25 @@ const app = {
         }
     },
     
-    // Función que aplica la sugerencia si el usuario hace clic
-    seleccionarSugerencia: (prefix, art, cat, uni) => {
+    // Función que aplica la sugerencia si el usuario hace clic (y maneja el cierre del modal global)
+    seleccionarSugerencia: (prefix, art, cat, uni, fromModal = false) => {
         const artInput = document.getElementById(`${prefix}-ing-art`) || document.getElementById(`${prefix}-art`);
         const catSelect = document.getElementById(`${prefix}-ing-cat`) || document.getElementById(`${prefix}-cat`);
         const uniSelect = document.getElementById(`${prefix}-ing-uni`) || document.getElementById(`${prefix}-uni`);
         
-        artInput.value = art;
+        if(artInput) artInput.value = art;
         if(catSelect) catSelect.value = cat;
         if(uniSelect) uniSelect.value = uni;
         
-        document.getElementById(`sug-${prefix}`).classList.add('hidden');
+        const sugDiv = document.getElementById(`sug-${prefix}`);
+        if(sugDiv) sugDiv.classList.add('hidden');
+
+        // Si la selección vino del Modal Global, cerramos el modal y enfocamos cantidad
+        if(fromModal) {
+            ui.toggleModal('modal-diccionario-global');
+            const cantInput = document.getElementById(`${prefix}-ing-cant`) || document.getElementById(`${prefix}-cant`);
+            if(cantInput) cantInput.focus();
+        }
     },
 
     // 2. MODAL DEL CATÁLOGO COMPLETO
@@ -494,7 +502,7 @@ const app = {
             const ordenados = [...state.diccionario].sort((a,b) => a.Articulo.localeCompare(b.Articulo));
             lista.innerHTML = ordenados.map(d => `
                 <div class="flex justify-between items-center p-3 border-b border-gray-100 hover:bg-indigo-50 cursor-pointer transition bg-white"
-                     onclick="app.seleccionarSugerencia('${prefix}', '${d.Articulo}', '${d.Categoria}', '${d.Unidad}'); ui.toggleModal('modal-diccionario-global'); document.getElementById('${prefix}-ing-cant') ? document.getElementById('${prefix}-ing-cant').focus() : document.getElementById('${prefix}-cant').focus();">
+                     onclick="app.seleccionarSugerencia('${prefix}', '${d.Articulo}', '${d.Categoria}', '${d.Unidad}', true)">
                     <div class="flex flex-col">
                         <span class="font-black text-gray-700 text-xs">${d.Articulo}</span>
                         <span class="text-[9px] text-gray-400 uppercase font-bold">${d.Categoria}</span>
@@ -775,6 +783,13 @@ const app = {
         const precioVal = parseFloat(row.querySelector('.inp-precio').value) || 0;
         let estado = row.querySelector('.chk-estado').checked ? "Comprado" : "Pendiente";
 
+        // RESTRICCIÓN NUEVA: Si el artículo es para un individuo específico, exige precio obligatoriamente
+        if (para !== 'Ambos' && precioVal === 0) {
+            alert("⚠️ ACCIÓN REQUERIDA:\n\nSi asignas que el artículo es exclusivo para " + para + ", debes ingresar su Costo S/ obligatoriamente para proteger el cálculo de pagos.");
+            row.querySelector('.sel-para').value = 'Ambos'; // Revertir para forzar el ingreso correcto
+            return;
+        }
+
         if ((precioVal > 0 || estado === 'Comprado') && quien === 'Pendiente') {
             alert("⚠️ ACCIÓN REQUERIDA:\nPara ingresar un costo o marcar como comprado, primero debes seleccionar 'Quién pagó'.");
             row.querySelector('.inp-precio').value = '';
@@ -837,6 +852,12 @@ const app = {
             if (m.Precio > 0) sumaIndividuales += m.Precio;
             updatesToSend.push(m);
         });
+
+        // RESTRICCIÓN NUEVA: Bloqueo de cierre si hay artículos individuales sin precio
+        const itemsIndividualesSinPrecio = updatesToSend.filter(m => m.Para !== 'Ambos' && m.Precio === 0);
+        if (itemsIndividualesSinPrecio.length > 0) {
+            return alert("⚠️ ACCIÓN REQUERIDA:\n\nTienes artículos asignados exclusivamente a una persona (Carlos o Daniel) que no tienen costo ingresado.\n\nPor favor, coloca el precio individual de esos artículos antes de cerrar toda la categoría.");
+        }
 
         const todosTienenPrecio = updatesToSend.every(m => parseFloat(m.Precio) > 0 && m.Quien_Pago !== "Pendiente");
 
