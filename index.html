@@ -21,6 +21,7 @@
     <div id="app-screen" class="hidden flex-col h-full w-full">
         <header class="bg-white shadow-sm p-4 flex justify-between items-center text-lg text-gray-800 shrink-0">
             <span class="font-bold">Gestión del Hogar</span>
+            <div id="label-ultima-sync" class="text-[10px] text-gray-500 font-bold ml-auto px-2">Última sync: --:--</div>
             <button onclick="auth.cerrarSesion()" class="text-xs font-bold text-red-500">Salir</button>
         </header>
 
@@ -179,11 +180,15 @@
             <div class="bg-gray-50 p-3 rounded mb-3 border border-gray-200">
                 <h4 class="text-xs font-bold mb-2 text-gray-600">Ingredientes</h4>
                 <div class="flex gap-1 mb-1">
-                    <!-- EVENTO oninput para Diccionario -->
-                    <input type="text" id="rec-ing-art" oninput="app.autocompletarDicc('rec')" placeholder="Artículo" class="border p-2 w-2/5 rounded text-xs focus:ring-1 focus:ring-blue-500" list="datalist-dicc">
+                    <div class="flex w-2/5">
+                        <input type="text" id="rec-ing-art" onkeyup="app.autocompletarDicc('rec')" placeholder="Artículo" class="border p-2 w-full rounded-l text-xs focus:ring-1 focus:ring-blue-500" autocomplete="off">
+                        <button type="button" onclick="app.abrirModalDiccionarioGlobal('rec')" class="bg-indigo-100 text-indigo-700 px-2 rounded-r border border-indigo-200 shadow-sm font-black hover:bg-indigo-200 transition">📚</button>
+                    </div>
                     <input type="number" inputmode="decimal" id="rec-ing-cant" placeholder="Cant." class="border p-2 w-1/5 rounded text-xs focus:ring-1 focus:ring-blue-500" step="0.1">
                     <select id="rec-ing-cat" class="border p-2 w-1/5 rounded text-xs"><option>abarrotes</option><option>carnes</option><option>frutas</option><option>verduras</option><option>condimentos</option><option>otros</option></select>
-                    <select id="rec-ing-uni" class="border p-2 w-1/5 rounded text-xs"><option>kg</option><option>bolsa</option><option>litros</option><option>unidad</option><option>soles</option></select>
+                    <select id="rec-ing-uni" class="border p-2 w-1/5 rounded text-xs">
+                        <option value="gramos">gramos</option><option value="kilogramos">kilogramos</option><option value="bolsa">bolsa</option><option value="botella">botella</option><option value="unidades">unidades</option><option value="soles">soles</option><option value="litros">litros</option><option value="otros">otros</option>
+                    </select>
                 </div>
                 <input type="text" id="rec-ing-com" placeholder="Comentario u observación (opcional)" class="border p-2 w-full mb-2 rounded text-xs">
                 <div class="flex gap-1 mb-2">
@@ -207,13 +212,17 @@
             <p id="plan-modal-subtitulo" class="text-xs text-gray-500 mb-4 font-bold uppercase"></p>
             <div class="bg-green-50 p-3 rounded mb-4 border border-green-200">
                 <div class="flex gap-1 mb-1">
-                    <!-- EVENTO oninput para Diccionario -->
-                    <input type="text" id="plan-ing-art" oninput="app.autocompletarDicc('plan')" placeholder="Añadir extra..." class="border border-green-300 p-2 w-2/5 rounded text-xs focus:ring-1 focus:ring-green-500" list="datalist-dicc">
-                    <input type="number" inputmode="decimal" id="plan-ing-cant" placeholder="Cant." class="border border-green-300 p-2 w-1/5 rounded text-xs focus:ring-1 focus:ring-green-500" step="0.1">
+                    <div class="flex w-2/5">
+                        <input type="text" id="plan-ing-art" onkeyup="app.autocompletarDicc('plan')" placeholder="Añadir extra..." class="border border-green-300 p-2 w-full rounded-l text-xs focus:ring-1 focus:ring-green-500 bg-white" autocomplete="off">
+                        <button type="button" onclick="app.abrirModalDiccionarioGlobal('plan')" class="bg-indigo-100 text-indigo-700 px-2 rounded-r border border-indigo-200 shadow-sm font-black hover:bg-indigo-200 transition">📚</button>
+                    </div>
+                    <input type="number" inputmode="decimal" id="plan-ing-cant" placeholder="Cant." class="border border-green-300 p-2 w-1/5 rounded text-xs focus:ring-1 focus:ring-green-500 bg-white" step="0.1">
                     <select id="plan-ing-cat" class="border border-green-300 p-2 w-1/5 rounded text-xs bg-white"><option>abarrotes</option><option>carnes</option><option>frutas</option><option>verduras</option><option>condimentos</option><option>otros</option></select>
-                    <select id="plan-ing-uni" class="border border-green-300 p-2 w-1/5 rounded text-xs bg-white"><option>kg</option><option>bolsa</option><option>litros</option><option>unidad</option><option>soles</option></select>
+                    <select id="plan-ing-uni" class="border border-green-300 p-2 w-1/5 rounded text-xs bg-white">
+                        <option value="gramos">gramos</option><option value="kilogramos">kilogramos</option><option value="bolsa">bolsa</option><option value="botella">botella</option><option value="unidades">unidades</option><option value="soles">soles</option><option value="litros">litros</option><option value="otros">otros</option>
+                    </select>
                 </div>
-                <input type="text" id="plan-ing-com" placeholder="Comentario u observación (opcional)" class="border border-green-300 p-2 w-full mb-2 rounded text-xs">
+                <input type="text" id="plan-ing-com" placeholder="Comentario u observación (opcional)" class="border border-green-300 p-2 w-full mb-2 rounded text-xs bg-white">
                 <div class="flex gap-1 mb-2">
                     <select id="plan-ing-para" class="border border-green-300 p-2 w-1/2 rounded text-xs font-bold bg-white"><option value="Ambos">Para: Ambos</option><option value="Carlos">Para: Carlos</option><option value="Daniel">Para: Daniel</option></select>
                     <select id="plan-ing-quien" class="border border-green-300 p-2 w-1/2 rounded text-xs font-bold bg-white"><option value="Pendiente">Pago: Pendiente</option><option value="Carlos">Pago: Carlos</option><option value="Daniel">Pago: Daniel</option></select>
@@ -244,10 +253,14 @@
             <h2 class="font-bold mb-3 text-lg">Agregar al Mercado</h2>
             <input type="date" id="man-fecha" class="w-full border p-2 mb-2 rounded font-bold text-gray-700">
             <div class="flex gap-2 mb-2">
-                <!-- EVENTO oninput para Diccionario -->
-                <input type="text" id="man-art" oninput="app.autocompletarDicc('man')" placeholder="Artículo" class="w-1/2 border p-2 rounded" list="datalist-dicc">
+                <div class="flex w-1/2">
+                    <input type="text" id="man-art" onkeyup="app.autocompletarDicc('man')" placeholder="Artículo" class="w-full border p-2 rounded-l" autocomplete="off">
+                    <button type="button" onclick="app.abrirModalDiccionarioGlobal('man')" class="bg-indigo-100 text-indigo-700 px-2 rounded-r border border-indigo-200 shadow-sm font-black hover:bg-indigo-200 transition">📚</button>
+                </div>
                 <input type="number" inputmode="decimal" id="man-cant" placeholder="Cant." class="w-1/4 border p-2 rounded" step="0.1">
-                <select id="man-uni" class="w-1/4 border p-2 rounded"><option>kg</option><option>bolsa</option><option>litros</option><option>unidad</option><option>soles</option></select>
+                <select id="man-uni" class="w-1/4 border p-2 rounded">
+                    <option value="gramos">gramos</option><option value="kilogramos">kilogramos</option><option value="bolsa">bolsa</option><option value="botella">botella</option><option value="unidades">unidades</option><option value="soles">soles</option><option value="litros">litros</option><option value="otros">otros</option>
+                </select>
             </div>
             <select id="man-cat" class="w-full border p-2 mb-2 rounded"><option>abarrotes</option><option>carnes</option><option>frutas</option><option>verduras</option><option>condimentos</option><option>otros</option></select>
             <input type="text" id="man-com" placeholder="Comentario u observación (opcional)" class="w-full border p-2 mb-2 rounded text-xs">
@@ -263,7 +276,22 @@
         </div>
     </div>
 
-    <datalist id="datalist-dicc"></datalist>
+    <!-- MODAL CATÁLOGO (Diccionario Global) -->
+    <div id="modal-diccionario-global" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+        <div class="bg-gray-100 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col h-[75vh]">
+            <div class="bg-indigo-700 p-3 flex justify-between items-center text-white shadow-md z-10">
+                <h3 class="font-black text-sm uppercase tracking-wide">📚 Catálogo de Productos</h3>
+                <button onclick="ui.toggleModal('modal-diccionario-global')" class="font-black text-xl hover:text-indigo-200 transition">&times;</button>
+            </div>
+            <div class="p-3 bg-white border-b border-gray-200 shadow-sm z-10">
+                <input type="text" id="buscador-dicc-global" placeholder="🔎 Buscar producto rápido..." class="w-full p-2 rounded-lg bg-gray-50 border border-gray-300 text-xs font-bold text-gray-700 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" onkeyup="app.filtrarDiccionarioGlobal(this.value)">
+            </div>
+            <div id="lista-diccionario-global" class="overflow-y-auto flex-1 space-y-1 p-2">
+                <!-- Se llena dinámicamente con JS -->
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
