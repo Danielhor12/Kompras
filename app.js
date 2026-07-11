@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbyio4q6-kLVYnvQzJ904KnPHmCSLyvi7iJfeMSwCY_XsghKkKJSAIUykOwQ4K0do6Q/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbys6fc0ALK0knJvrjqsBL-BfqZBvrN8bvRl2eodOP7s4baVrP5VlXJ9ZTn1fmRBqv0/exec"; 
 
 let state = {
     diccionario: [], recetario: [], plan: [], mercado: [], semanas: [],
@@ -52,6 +52,11 @@ async function syncData() {
     const data = await api({ action: 'sync' }, true);
     if(!data) return;
     
+    // Texto de última sincronización persistente
+    const fechaSync = new Date().toLocaleString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit' });
+    const labelSync = document.getElementById('label-ultima-sync');
+    if (labelSync) labelSync.innerText = `Última sync: ${fechaSync}`;
+
     const prevFiltroComprador = state.filtroComprador || 'Todos';
     state = {...state, ...data, filtroComprador: prevFiltroComprador};
     
@@ -93,7 +98,6 @@ async function syncData() {
     }
 
     renderAll();
-    actualizarDiccionario(); // Carga las sugerencias guardadas
     app.filtrarPlatosPorTipo();
 }
 
@@ -117,7 +121,6 @@ const ui = {
 };
 
 function renderAll() { renderRecetario(); renderPlan(); renderMercado(); }
-function actualizarDiccionario() { document.getElementById('datalist-dicc').innerHTML = state.diccionario.map(d => `<option value="${d.Articulo}">`).join(''); }
 
 function formatearFechaAmigable(fechaStr) {
     if(!fechaStr) return 'Fecha Inválida';
@@ -220,11 +223,19 @@ function renderPlan() {
                                 <button onclick="app.eliminarPlan('${p.Plan_ID}')" class="text-red-500 font-bold bg-red-100 px-3 py-1 rounded text-xs hover:bg-red-200 shadow-sm transition">X</button>
                             </div>
                             <div class="flex items-center gap-2 mt-1 w-full">
-                                <span class="text-[10px] text-gray-500 font-bold uppercase w-1/4">Día:</span>
+                                <span class="text-[10px] text-gray-500 font-bold uppercase w-1/5">Día:</span>
                                 <input type="date" value="${p.Fecha.substring(0,10)}" onchange="app.cambiarFechaPlan('${p.Plan_ID}', this.value)" class="border border-blue-200 p-1 text-[10px] rounded bg-white font-bold text-blue-700 outline-none focus:ring-1 focus:ring-blue-400 w-1/4">
-                                <span class="text-[10px] text-gray-500 font-bold uppercase ml-2 w-1/4 text-right pr-1">Tipo:</span>
+                                <span class="text-[10px] text-gray-500 font-bold uppercase ml-1 w-1/6 text-right pr-1">Tipo:</span>
                                 <select onchange="app.cambiarTipoPlan('${p.Plan_ID}', this.value)" class="border border-blue-200 p-1 text-[10px] rounded bg-white font-bold text-blue-700 outline-none w-1/4">
                                     ${ordenComida.map(t => `<option value="${t}" ${(p.Tipo || 'Almuerzo') === t ? 'selected' : ''}>${t}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-2 mt-1 w-full">
+                                <span class="text-[10px] text-gray-500 font-bold uppercase w-1/4 text-right pr-1">Cocina:</span>
+                                <select onchange="app.cambiarLugarPlan('${p.Plan_ID}', this.value)" class="border border-orange-200 p-1 text-[10px] rounded bg-orange-50 font-bold text-orange-700 outline-none w-3/4">
+                                    <option value="Ambos" ${(p.Lugar === 'Ambos' || !p.Lugar) ? 'selected' : ''}>🏠 Ambos / Por definir</option>
+                                    <option value="Carlos" ${p.Lugar === 'Carlos' ? 'selected' : ''}>🧑🏻 Cocina Carlos</option>
+                                    <option value="Daniel" ${p.Lugar === 'Daniel' ? 'selected' : ''}>🧑🏽 Cocina Daniel</option>
                                 </select>
                             </div>
                         </div>`;
@@ -390,19 +401,121 @@ function renderMercado() {
 
 // ================= CONTROLADOR PRINCIPAL =================
 const app = {
-    // NUEVA FUNCIÓN: DICCIONARIO INTELIGENTE
+    // 1. DICCIONARIO INTELIGENTE AVANZADO (Tolerancia a errores)
     autocompletarDicc: (prefix) => {
         const artInput = document.getElementById(`${prefix}-ing-art`) || document.getElementById(`${prefix}-art`);
         if(!artInput) return;
-        const val = artInput.value.toLowerCase().trim();
-        const match = state.diccionario.find(d => d.Articulo.toLowerCase().trim() === val);
-        
-        if(match) {
+
+        // Función para quitar tildes, mayúsculas y espacios dobles
+        const normalizar = (texto) => texto.toLowerCase().trim().replace(/\s+/g, ' ').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const valLimpiado = normalizar(artInput.value);
+
+        // Crear contenedor flotante de sugerencias si no existe
+        let sugDiv = document.getElementById(`sug-${prefix}`);
+        if(!sugDiv) {
+            sugDiv = document.createElement('div');
+            sugDiv.id = `sug-${prefix}`;
+            sugDiv.className = 'absolute z-50 bg-white border border-gray-200 shadow-xl rounded-b-lg mt-1 w-full max-h-40 overflow-y-auto hidden';
+            artInput.parentNode.style.position = 'relative'; 
+            artInput.parentNode.appendChild(sugDiv);
+        }
+
+        if(!valLimpiado) { sugDiv.classList.add('hidden'); return; }
+
+        // Algoritmo matemático para calcular similitud de palabras (Levenshtein)
+        const distancia = (a, b) => {
+            const m = [];
+            if (!(a && b)) return (b || a).length;
+            for (let i = 0; i <= b.length; m[i] = [i++]);
+            for (let j = 0; j <= a.length; m[0][j] = j++);
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    m[i][j] = b.charAt(i - 1) === a.charAt(j - 1) ? m[i - 1][j - 1] : Math.min(m[i][j - 1] + 1, m[i - 1][j] + 1, m[i - 1][j - 1] + 1);
+                }
+            }
+            return m[b.length][a.length];
+        };
+
+        // Buscar primero coincidencia exacta o plural
+        const matchExacto = state.diccionario.find(d => {
+            const diccArt = normalizar(d.Articulo);
+            return diccArt === valLimpiado || diccArt === valLimpiado + 's' || diccArt === valLimpiado + 'es' || valLimpiado === diccArt + 's' || valLimpiado === diccArt + 'es';
+        });
+
+        if(matchExacto) {
+            sugDiv.classList.add('hidden'); 
             const catSelect = document.getElementById(`${prefix}-ing-cat`) || document.getElementById(`${prefix}-cat`);
             const uniSelect = document.getElementById(`${prefix}-ing-uni`) || document.getElementById(`${prefix}-uni`);
-            if(catSelect) catSelect.value = match.Categoria;
-            if(uniSelect) uniSelect.value = match.Unidad;
+            if(catSelect) catSelect.value = matchExacto.Categoria;
+            if(uniSelect) uniSelect.value = matchExacto.Unidad;
+        } else {
+            // Búsqueda de errores ortográficos (Typos)
+            const similares = state.diccionario.map(d => ({
+                item: d,
+                dist: distancia(valLimpiado, normalizar(d.Articulo))
+            })).filter(d => d.dist <= 3 && d.dist > 0).sort((a,b) => a.dist - b.dist).slice(0, 3); // Máximo 3 sugerencias
+
+            if(similares.length > 0) {
+                sugDiv.innerHTML = similares.map(s => `
+                    <div class="p-2 border-b border-gray-100 text-xs cursor-pointer hover:bg-blue-50 text-gray-700 transition" 
+                         onclick="app.seleccionarSugerencia('${prefix}', '${s.item.Articulo}', '${s.item.Categoria}', '${s.item.Unidad}')">
+                        ¿Quisiste decir <span class="font-black text-blue-600">${s.item.Articulo}</span>?
+                    </div>
+                `).join('') + `<div class="p-1.5 text-[9px] text-gray-400 bg-gray-50 text-center">Ignora esto para registrar como producto nuevo</div>`;
+                sugDiv.classList.remove('hidden');
+            } else {
+                sugDiv.classList.add('hidden'); 
+            }
         }
+    },
+    
+    // Función que aplica la sugerencia si el usuario hace clic
+    seleccionarSugerencia: (prefix, art, cat, uni) => {
+        const artInput = document.getElementById(`${prefix}-ing-art`) || document.getElementById(`${prefix}-art`);
+        const catSelect = document.getElementById(`${prefix}-ing-cat`) || document.getElementById(`${prefix}-cat`);
+        const uniSelect = document.getElementById(`${prefix}-ing-uni`) || document.getElementById(`${prefix}-uni`);
+        
+        artInput.value = art;
+        if(catSelect) catSelect.value = cat;
+        if(uniSelect) uniSelect.value = uni;
+        
+        document.getElementById(`sug-${prefix}`).classList.add('hidden');
+    },
+
+    // 2. MODAL DEL CATÁLOGO COMPLETO
+    abrirModalDiccionarioGlobal: (prefix) => {
+        const lista = document.getElementById('lista-diccionario-global');
+        document.getElementById('buscador-dicc-global').value = ''; // Limpiar buscador
+        
+        if(state.diccionario.length === 0) {
+            lista.innerHTML = '<p class="text-center text-gray-400 text-xs mt-4">El catálogo está vacío. Aprenderé nuevos productos cuando los agregues.</p>';
+        } else {
+            // Ordenar alfabéticamente
+            const ordenados = [...state.diccionario].sort((a,b) => a.Articulo.localeCompare(b.Articulo));
+            lista.innerHTML = ordenados.map(d => `
+                <div class="flex justify-between items-center p-3 border-b border-gray-100 hover:bg-indigo-50 cursor-pointer transition bg-white"
+                     onclick="app.seleccionarSugerencia('${prefix}', '${d.Articulo}', '${d.Categoria}', '${d.Unidad}'); ui.toggleModal('modal-diccionario-global'); document.getElementById('${prefix}-ing-cant') ? document.getElementById('${prefix}-ing-cant').focus() : document.getElementById('${prefix}-cant').focus();">
+                    <div class="flex flex-col">
+                        <span class="font-black text-gray-700 text-xs">${d.Articulo}</span>
+                        <span class="text-[9px] text-gray-400 uppercase font-bold">${d.Categoria}</span>
+                    </div>
+                    <span class="text-indigo-700 font-black text-[10px] bg-indigo-100 px-2 py-1 rounded shadow-sm">${d.Unidad}</span>
+                </div>
+            `).join('');
+        }
+        ui.toggleModal('modal-diccionario-global');
+    },
+
+    // Buscador rápido dentro del modal
+    filtrarDiccionarioGlobal: (termino) => {
+        const normalizar = (t) => t.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const valLimpiado = normalizar(termino);
+        const items = document.querySelectorAll('#lista-diccionario-global > div');
+        
+        items.forEach(el => {
+            const texto = normalizar(el.querySelector('span.font-black').innerText);
+            el.style.display = texto.includes(valLimpiado) ? 'flex' : 'none';
+        });
     },
 
     ejecutarSincronizacion: async (btnElement) => {
@@ -477,6 +590,13 @@ const app = {
         if(plan) plan.Tipo = nuevoTipo;
         renderPlan();
         api({ action: 'update_plan_tipo', plan_id: planID, nuevo_tipo: nuevoTipo }, true);
+    },
+    
+    cambiarLugarPlan: (planID, nuevoLugar) => {
+        const plan = state.plan.find(p => p.Plan_ID === planID);
+        if(plan) plan.Lugar = nuevoLugar;
+        renderPlan();
+        api({ action: 'update_plan_lugar', plan_id: planID, nuevo_lugar: nuevoLugar }, true);
     },
 
     addIngredienteTemp: (contexto) => {
@@ -578,12 +698,12 @@ const app = {
         const btn = document.getElementById('btn-confirmar-plan'); btn.innerText = '¡Programado!'; setTimeout(() => { btn.innerText = 'Confirmar y Programar'; }, 1000);
         const planID = "PLN-" + Date.now();
         const meta = state.tempPlanMeta;
-        state.plan.push({ Plan_ID: planID, Semana_ID: state.semanaActual, Fecha: meta.fecha, ID_Plato: meta.id_plato, Nombre_Plato: meta.nombre_plato, Tipo: meta.tipo });
+        state.plan.push({ Plan_ID: planID, Semana_ID: state.semanaActual, Fecha: meta.fecha, ID_Plato: meta.id_plato, Nombre_Plato: meta.nombre_plato, Tipo: meta.tipo, Lugar: 'Ambos' });
         state.tempIngredientes.forEach(ing => {
             state.mercado.push({ ID_Item: "ITM-" + Date.now() + Math.floor(Math.random() * 1000), Semana_ID: state.semanaActual, Plan_ID: planID, Articulo: ing.articulo, Categoria: ing.categoria, Unidad: ing.unidad, Cantidad: ing.cantidad || 1, Para: ing.para || "Ambos", Quien_Pago: ing.quien_pago || "Pendiente", Precio: 0, Estado: "Pendiente", Origen: "Receta", Fecha: meta.fecha, Comentario: ing.comentario || "" });
         });
         renderPlan(); renderMercado(); document.getElementById('plan-fecha').value = ''; ui.toggleModal('modal-plan-ingredientes');
-        api({ action: 'save_plan', plan_id: planID, semana_id: state.semanaActual, fecha: meta.fecha, id_plato: meta.id_plato, nombre_plato: meta.nombre_plato, tipo: meta.tipo, ingredientes: JSON.stringify(state.tempIngredientes) }, true);
+        api({ action: 'save_plan', plan_id: planID, semana_id: state.semanaActual, fecha: meta.fecha, id_plato: meta.id_plato, nombre_plato: meta.nombre_plato, tipo: meta.tipo, lugar: 'Ambos', ingredientes: JSON.stringify(state.tempIngredientes) }, true);
     },
     verIngredientesPlan: (planID, nombrePlato) => {
         const items = state.mercado.filter(m => m.Plan_ID === planID);
@@ -767,21 +887,16 @@ const app = {
     },
 
     calcularPagos: () => {
-        // 1. VALIDACIÓN ESTRICTA: Bloqueo por categorías abiertas
-        // Seleccionamos los spans que indican el estado de la categoría (el botón que dice "Cerrar" vs "Cerrado")
         const botonesCierre = document.querySelectorAll('#lista-mercado button'); 
-        
-        // Verificamos si existe algún botón visible que diga "Cerrar" (lo que significa que la categoría está abierta)
         const hayCategoriasPendientes = Array.from(botonesCierre).some(btn => 
             btn.textContent.trim().toLowerCase() === 'cerrar' && !btn.disabled
         );
 
         if (hayCategoriasPendientes) {
             alert("⚠️ ACCIÓN REQUERIDA:\n\nDebes CERRAR todas las categorías en la vista 'Mercado' (asignando costos y pagadores) antes de poder calcular los pagos. Revisa la lista y cierra las categorías pendientes.");
-            return; // Aborta la ejecución
+            return;
         }
 
-        // 2. Continúa tu flujo normal de cálculo
         const fIn = document.getElementById('filtro-inicio').value;
         const fFin = document.getElementById('filtro-fin').value;
 
@@ -794,7 +909,6 @@ const app = {
             });
         }
         
-        // Esta validación original tuya ahora actúa como doble seguro
         const pendientes = items.some(i => i.Estado === 'Pendiente' && i.Origen !== 'Agrupación');
         if (pendientes) {
             return alert("⚠️ Aún tienes artículos individuales pendientes de compra.\n\nPor favor, ingresa sus precios o cierra la categoría completa en la vista Mercado antes de sacar las cuentas finales.");
@@ -805,7 +919,6 @@ const app = {
 
         items.forEach(i => {
             let p = parseFloat(i.Precio) || 0;
-            // OJO AQUÍ: Aseguramos que solo entran al cálculo los ítems cerrados/comprados
             if (p > 0 && i.Quien_Pago !== 'Pendiente' && (i.Estado === 'Comprado' || i.Estado === 'Comprado_Bloqueado' || i.Origen === 'Agrupación')) {
                 listaValidos.push(i); 
                 if(i.Quien_Pago === 'Carlos') pagoCarlos += p;
